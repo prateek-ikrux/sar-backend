@@ -1,0 +1,36 @@
+{
+  "name": "sar-backend",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [
+    "sar",
+    "backend",
+    "mongodb",
+    "vector-search",
+    "llm"
+  ],
+  "homepage": "https://github.com/prateek-ikrux/sar-backend#readme",
+  "bugs": {
+    "url": "https://github.com/prateek-ikrux/sar-backend/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/prateek-ikrux/sar-backend.git"
+  },
+  "license": "ISC",
+  "author": "Prateek Shende",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "minio": "^8.0.7",
+    "mongoose": "^9.10.1"
+  }
+}
