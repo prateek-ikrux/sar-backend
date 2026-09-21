@@ -16,8 +16,8 @@ app.use(express.urlencoded({
     limit: "16kb"
 }));
 
-import userRouter from "./routes/user.controller.js";
-import healthRouter from "./routes/health.controller.js";
+import userRouter from "./routes/user.routes.js";
+import healthRouter from "./routes/healthcheck.routes.js";
 
 app.use("/api/v1", userRouter);
 app.use("/api/v1", healthRouter);
