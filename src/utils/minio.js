@@ -23,4 +23,4 @@ const getPresignedUrl = async (fileName, expirySeconds = DEFAULT_EXPIRY_SECONDS)
     expirySeconds
   )
 
-export default getPresignedUrl
+export { getClient, getPresignedUrl }
