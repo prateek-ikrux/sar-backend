@@ -1,6 +1,4 @@
 import { Schema, model } from "mongoose";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
 
 const otpSchema = new Schema(
     {
@@ -46,13 +44,12 @@ const otpSchema = new Schema(
     },
     {
         collection: "otp_codes",
-        timestamps: true, 
+        timestamps: { createdAt: "created_at", updatedAt: false },
+        versionKey: false,
+        // by_email and ttl_expired_codes already exist on the collection.
+        autoIndex: false,
     }
 );
-
-otpSchema.methods.isUsable = function () {
-    return !this.consumed_at && this.expires_at > new Date();
-};
 
 const Otp = model("Otp", otpSchema);
 

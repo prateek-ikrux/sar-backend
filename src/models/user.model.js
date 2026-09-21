@@ -9,27 +9,35 @@ const userSchema = new Schema(
             required: true,
             trim: true,
             lowercase: true,
-            unique: true, 
+            unique: true,
         },
         name: {
             type: String,
             required: true,
             trim: true,
-            unique: true,
         },
         role: {
             type: String,
-            enum: ROLES,
-            default: ROLES.USER
+            enum: Object.values(ROLES),
+            default: ROLES.RECRUITER,
         },
         active: {
             type: Boolean,
-            default: true
+            default: true,
+        },
+        last_login_at: {
+            type: Date,
+            default: null,
         },
     },
-    {   
+    {
         collection: "users",
-        timestamps: true,
+        // The collection stores created_at, not createdAt.
+        timestamps: { createdAt: "created_at", updatedAt: false },
+        versionKey: false,
+        // uniq_email already exists on the collection; letting Mongoose build
+        // its own index from `unique: true` would create a duplicate.
+        autoIndex: false,
     }
 );
 

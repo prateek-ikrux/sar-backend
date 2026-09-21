@@ -27,7 +27,7 @@
     "start": "node --env-file-if-exists=.env src/index.js"
   },
   "dependencies": {
-    "bcrypt": "^6.0.0",
+    "argon2": "^0.45.1",
     "cors": "^2.8.6",
     "dotenv": "^18.0.1",
     "express": "^5.2.1",
