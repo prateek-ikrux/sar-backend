@@ -16,11 +16,7 @@ const generateCode = () =>
     String(crypto.randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
 
 const requestOtp = asyncHandler(async (req, res) => {
-    const email = req.body?.email?.trim().toLowerCase();
-
-    if (!email) {
-        throw new ApiError(422, "Validation failed", ["email is required"]);
-    }
+    const { email } = req.validated.body;
 
     const user = await User.findOne({ email });
 
@@ -65,15 +61,7 @@ const requestOtp = asyncHandler(async (req, res) => {
 });
 
 const verifyOtp = asyncHandler(async (req, res) => {
-    const email = req.body?.email?.trim().toLowerCase();
-    const code = req.body?.code?.trim();
-    const errors = [];
-
-    if (!email) errors.push("email is required");
-    if (!code) errors.push("code is required");
-    if (errors.length) {
-        throw new ApiError(422, "Validation failed", errors);
-    }
+    const { email, code } = req.validated.body;
 
     const otp = await Otp.findOne({ email, consumed_at: null }).sort({ created_at: -1 });
 

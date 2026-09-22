@@ -1,26 +1,11 @@
-import mongoose from "mongoose";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/apiError.js";
 import ApiResponse from "../utils/apiResponse.js";
 import User from "../models/user.model.js";
-import { ROLES } from "../constants.js";
 
 
-const requireValidId = (id) => {
-    if (!mongoose.isValidObjectId(id)) {
-        throw new ApiError(400, "Invalid user id");
-    }
-    return id;
-};
-
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 100;
-
-// Capped rather than optional: an uncapped find() over a collection that keeps
-// growing would eventually serve every user in one response.
 const listUsers = asyncHandler(async (req, res) => {
-    const page = Math.max(1, Number(req.query.page) || 1);
-    const limit = Math.min(MAX_LIMIT, Math.max(1, Number(req.query.limit) || DEFAULT_LIMIT));
+    const { page, limit } = req.validated.query;
 
     const [users, total] = await Promise.all([
         User.find()
@@ -42,7 +27,7 @@ const listUsers = asyncHandler(async (req, res) => {
 });
 
 const getUser = asyncHandler(async (req, res) => {
-    const user = await User.findById(requireValidId(req.params.id));
+    const user = await User.findById(req.validated.params.id);
 
     if (!user) {
         throw new ApiError(404, "User not found");
@@ -52,7 +37,7 @@ const getUser = asyncHandler(async (req, res) => {
 });
 
 const createUser = asyncHandler(async (req, res) => {
-    const { email, name, role } = req.body ?? {};
+    const { email, name, role } = req.validated.body;
 
     try {
         const user = await User.create({ email, name, role });
@@ -71,20 +56,11 @@ const createUser = asyncHandler(async (req, res) => {
 });
 
 const updateUser = asyncHandler(async (req, res) => {
-    const { name, role, active } = req.body ?? {};
-    const updates = {};
-
-    if (name !== undefined) updates.name = name;
-    if (role !== undefined) updates.role = role;
-    if (active !== undefined) updates.active = active;
-
-    if (!Object.keys(updates).length) {
-        throw new ApiError(422, "Validation failed", [`send one of: name, role, active`]);
-    }
+    const updates = req.validated.body;
 
     let user;
     try {
-        user = await User.findByIdAndUpdate(requireValidId(req.params.id), updates, {
+        user = await User.findByIdAndUpdate(req.validated.params.id, updates, {
             returnDocument: "after",
             runValidators: true,
         });
@@ -103,7 +79,7 @@ const updateUser = asyncHandler(async (req, res) => {
 });
 
 const deleteUser = asyncHandler(async (req, res) => {
-    const user = await User.findByIdAndDelete(requireValidId(req.params.id));
+    const user = await User.findByIdAndDelete(req.validated.params.id);
 
     if (!user) {
         throw new ApiError(404, "User not found");
