@@ -12,8 +12,6 @@ import {
     OTP_MAX_ATTEMPTS,
 } from "../constants.js";
 
-// randomInt is drawn from the CSPRNG; Math.random is predictable and must not
-// be used for anything that grants access.
 const generateCode = () =>
     String(crypto.randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
 
@@ -33,8 +31,6 @@ const requestOtp = asyncHandler(async (req, res) => {
         throw new ApiError(403, "This account is deactivated");
     }
 
-    // Retire any code still outstanding for this address, so only the newest
-    // one can be used.
     await Otp.updateMany(
         { email, consumed_at: null },
         { consumed_at: new Date() }
@@ -81,8 +77,6 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
     const otp = await Otp.findOne({ email, consumed_at: null }).sort({ created_at: -1 });
 
-    // One message for every failure below: telling the caller which check
-    // failed would help someone guessing codes.
     const invalid = new ApiError(401, "Invalid or expired code");
 
     if (!otp || otp.expires_at <= new Date() || otp.attempts >= OTP_MAX_ATTEMPTS) {

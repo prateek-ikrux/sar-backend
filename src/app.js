@@ -24,5 +24,9 @@ app.use("/api/v1", userRouter);
 app.use("/api/v1", authRouter);
 app.use("/api/v1", healthRouter);
 
+import { notFound, errorHandler } from "./middlewares/error.middleware.js";
+
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;

@@ -5,14 +5,41 @@ import ApiResponse from "../utils/apiResponse.js";
 import User from "../models/user.model.js";
 import { ROLES } from "../constants.js";
 
-// findById(undefined) matches the first document in the collection rather
-// than nothing, so ids are checked before they reach a query.
+
 const requireValidId = (id) => {
     if (!mongoose.isValidObjectId(id)) {
         throw new ApiError(400, "Invalid user id");
     }
     return id;
 };
+
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
+
+// Capped rather than optional: an uncapped find() over a collection that keeps
+// growing would eventually serve every user in one response.
+const listUsers = asyncHandler(async (req, res) => {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(MAX_LIMIT, Math.max(1, Number(req.query.limit) || DEFAULT_LIMIT));
+
+    const [users, total] = await Promise.all([
+        User.find()
+            .sort({ created_at: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit),
+        User.countDocuments(),
+    ]);
+
+    return res.status(200).json(
+        new ApiResponse(200, "Users fetched", {
+            users,
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit),
+        })
+    );
+});
 
 const getUser = asyncHandler(async (req, res) => {
     const user = await User.findById(requireValidId(req.params.id));
@@ -85,4 +112,4 @@ const deleteUser = asyncHandler(async (req, res) => {
     return res.status(200).json(new ApiResponse(200, "User deleted", { _id: user._id }));
 });
 
-export { getUser, createUser, updateUser, deleteUser };
+export { listUsers, getUser, createUser, updateUser, deleteUser };
