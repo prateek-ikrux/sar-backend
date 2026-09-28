@@ -19,10 +19,12 @@ app.use(express.urlencoded({
 import userRouter from "./routes/user.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import healthRouter from "./routes/healthcheck.routes.js";
+import searchRouter from "./routes/search.routes.js";
 
 app.use("/api/v1", userRouter);
 app.use("/api/v1", authRouter);
 app.use("/api/v1", healthRouter);
+app.use("/api/v1", searchRouter);
 
 import { notFound, errorHandler } from "./middlewares/error.middleware.js";
 
