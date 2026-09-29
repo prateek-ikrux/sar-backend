@@ -21,9 +21,21 @@ services:
       - NODE_ENV=production
       # Pin the in-container port so the mapping and healthcheck always match
       - PORT=8000
+      # nginx on the host is the only client (see the loopback binding below),
+      # so trust its one X-Forwarded-For hop and rate limits see the real IP
+      - TRUST_PROXY=1
     ports:
-      - "8000:8000"
+      # Loopback only: Docker's published ports bypass ufw, so a bare "8000:8000"
+      # would expose the API over plain HTTP next to nginx
+      - "127.0.0.1:8000:8000"
     restart: unless-stopped
+    # Docker's default json-file driver never rotates, so logs would grow until
+    # the disk fills; keep at most 3 x 10 MB per container
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 
   dev:

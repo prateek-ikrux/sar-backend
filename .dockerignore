@@ -20,6 +20,7 @@ npm-debug.log*
 .vscode/
 .idea/
 postman/
+sar.nginx.conf
 README.md
 *.bak
 
