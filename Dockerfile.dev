@@ -1,0 +1,29 @@
+# =========================================
+# Stage: Development (Express API with node --watch)
+# =========================================
+ARG NODE_VERSION=24.14.0-alpine
+
+FROM node:${NODE_VERSION} AS dev
+
+# Set working directory inside the container and hand it to the non-root
+# "node" user before installing, so node_modules never needs a recursive chown
+WORKDIR /app
+RUN chown node:node /app
+
+# Switch to the built-in non-root "node" user
+USER node
+
+# Copy package files
+COPY --chown=node:node package.json package-lock.json ./
+
+# Install dependencies (clean, lockfile-exact install)
+RUN npm ci
+
+# Copy rest of the source code
+COPY --chown=node:node . .
+
+# Expose the API port
+EXPOSE 8000
+
+# Restart the server whenever a file under src/ changes
+CMD ["node", "--watch", "src/index.js"]

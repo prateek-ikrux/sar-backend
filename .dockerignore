@@ -1,14 +1,33 @@
-.venv/
-__pycache__/
-*.py[cod]
-.ruff_cache/
-.pytest_cache/
+# =========================================
+# Dependencies (installed inside the image; host copies have Windows binaries)
+# =========================================
+node_modules/
+.npm/
+*.log
+npm-debug.log*
 
+# =========================================
+# Environment files (secrets are injected via env_file, never baked in)
+# =========================================
 .env
 .env.*
-!.env.example
+
+# =========================================
+# Local development files
+# =========================================
+.git/
+.gitignore
+.vscode/
+.idea/
+postman/
+README.md
 *.bak
 
+# =========================================
+# Docker-related files
+# =========================================
 Dockerfile
+Dockerfile.dev
 .dockerignore
-README.md
+compose.yaml
+compose.override.yaml

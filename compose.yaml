@@ -1,0 +1,47 @@
+# Usage:
+#   Dev  (auto-restart): docker compose up --watch dev
+#   Prod:                docker compose up --build -d prod
+# Profiles keep a bare `docker compose up` from starting both on port 8000.
+#
+# MongoDB (Atlas) and object storage are external, so there are no database
+# services here; all connection settings come from .env.
+
+services:
+  prod:
+    profiles: [prod]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    env_file:
+      - .env
+    environment:
+      # Pin the in-container port so the mapping and healthcheck always match
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+
+  dev:
+    profiles: [dev]
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    init: true
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
