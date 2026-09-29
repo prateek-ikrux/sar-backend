@@ -2,8 +2,13 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { corsOptions } from "./config/cors.js";
+import { requestLogger } from "./middlewares/requestLogger.middleware.js";
 
 const app = express();
+
+// First, so every request gets an id and a log line, including those that
+// fail in the middleware below.
+app.use(requestLogger);
 
 // Standard security headers (nosniff, no framing, HSTS, no X-Powered-By).
 app.use(helmet());

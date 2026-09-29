@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { validateEnv } from "./config/env.js";
 import { connectDB } from "./db/index.js";
 import app from "./app.js";
+import logger from "./utils/logger.js";
 
 // Env comes from the process: `node --env-file` in the npm scripts, env_file
 // in compose. Checked before anything tries to use it.
@@ -20,10 +21,10 @@ await connectDB();
 // connection would keep a process that serves nothing alive.
 const server = app.listen(PORT, (error) => {
     if (error) {
-        console.error(`Could not start the server on port ${PORT}:`, error);
+        logger.fatal({ err: error, port: PORT }, "could not start the server");
         process.exit(1);
     }
-    console.log(`Server is running on port ${PORT}`);
+    logger.info({ port: PORT }, "server is running");
 });
 
 let shuttingDown = false;
@@ -31,10 +32,10 @@ let shuttingDown = false;
 const shutdown = (signal) => {
     if (shuttingDown) return;
     shuttingDown = true;
-    console.log(`${signal} received, shutting down`);
+    logger.info({ signal }, "shutting down");
 
     setTimeout(() => {
-        console.error(`Requests still open after ${SHUTDOWN_TIMEOUT_MS}ms, forcing exit`);
+        logger.error({ timeoutMs: SHUTDOWN_TIMEOUT_MS }, "requests still open, forcing exit");
         process.exit(1);
     }, SHUTDOWN_TIMEOUT_MS).unref();
 
@@ -43,7 +44,7 @@ const shutdown = (signal) => {
     server.close(() => {
         mongoose
             .disconnect()
-            .catch((error) => console.error("Error closing the MongoDB connection:", error))
+            .catch((error) => logger.error({ err: error }, "error closing the MongoDB connection"))
             .finally(() => process.exit(0));
     });
 };

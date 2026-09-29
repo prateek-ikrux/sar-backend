@@ -142,12 +142,9 @@ describe("errorHandler", () => {
         const previous = process.env.NODE_ENV;
         process.env.NODE_ENV = nodeEnv;
         const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
-        const originalError = console.error;
-        console.error = () => {};
         try {
             errorHandler(err, { method: "GET", originalUrl: "/x" }, res, () => {});
         } finally {
-            console.error = originalError;
             process.env.NODE_ENV = previous;
         }
         return res;

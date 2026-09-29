@@ -3,6 +3,7 @@ import { getResumeUrl, getPresignedUrl, objectExists } from "../utils/minio.js";
 import { VECTOR_INDEX, VECTOR_SEARCH_PATH, MAX_CANDIDATES, EXISTENCE_BATCH } from "../constants.js";
 import { redact } from "../utils/redact.js";
 import { findCandidateName } from "./candidateName.js";
+import { track, requestLog, msSince } from "../utils/requestStats.js";
 
 // Resumes land from a separate pipeline over time, so a stored has_resume flag
 // would go stale. Availability is checked live instead, and only ever improves.
@@ -32,8 +33,9 @@ const projection = (includeDocument) => ({
 // The index stores voyage-4 vectors that Atlas generates itself, so the query
 // goes over as text. Sending a queryVector is rejected outright:
 // "queryVector of type float32 cannot be used with autoEmbed quantization".
-const runVectorSearch = async ({ query, limit, includeDocument }) =>
-    getProfilesCollection()
+const runVectorSearch = async ({ query, limit, includeDocument }) => {
+    const started = process.hrtime.bigint();
+    const results = await getProfilesCollection()
         .aggregate([
             {
                 $vectorSearch: {
@@ -48,9 +50,16 @@ const runVectorSearch = async ({ query, limit, includeDocument }) =>
         ])
         .toArray();
 
+    track("vectorSearch", { calls: 1, requested: limit, rows: results.length, ms: msSince(started) });
+    return results;
+};
+
+const totalLength = (documents) => documents.reduce((sum, document) => sum + (document?.length ?? 0), 0);
+
 // ENN costs the same at limit 20 or 400, so the candidate pool is cheap; the
 // existence checks are not, and they stop as soon as enough are found.
 const collectWithResumes = async ({ query, limit }) => {
+    const started = process.hrtime.bigint();
     const candidates = await runVectorSearch({ query, limit: MAX_CANDIDATES, includeDocument: false });
     const kept = [];
     let scanned = 0;
@@ -66,12 +75,17 @@ const collectWithResumes = async ({ query, limit }) => {
         }
     }
 
+    track("resumeFilter", { poolSize: candidates.length, scanned, kept: kept.length, ms: msSince(started) });
     return { kept, scanned, poolSize: candidates.length };
 };
 
 const searchProfiles = async ({ query, limit, requireResume = false, includeDocument = true }) => {
     if (!requireResume) {
         const results = await runVectorSearch({ query, limit, includeDocument });
+        track("search", {
+            results: results.length,
+            documentChars: totalLength(results.map((profile) => profile.document)),
+        });
 
         return Promise.all(
             results.map(async (profile) => toResult(profile, await getResumeUrl(profile.file_name)))
@@ -87,6 +101,7 @@ const searchProfiles = async ({ query, limit, requireResume = false, includeDocu
             .toArray();
         for (const profile of withText) documents.set(profile._id.toString(), profile.document);
     }
+    track("search", { results: kept.length, documentChars: totalLength([...documents.values()]) });
 
     return Promise.all(
         kept.map(async (profile) => {
@@ -96,7 +111,7 @@ const searchProfiles = async ({ query, limit, requireResume = false, includeDocu
             try {
                 resumeUrl = await getPresignedUrl(profile.file_name);
             } catch (error) {
-                console.error(`resume url failed for "${profile.file_name}":`, error.message);
+                requestLog().warn({ err: error, fileName: profile.file_name }, "resume url failed");
             }
 
             return toResult({ ...profile, document: documents.get(profile._id.toString()) ?? "" }, resumeUrl);

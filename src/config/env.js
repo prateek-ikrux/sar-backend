@@ -1,4 +1,5 @@
 import { z } from "zod";
+import logger from "../utils/logger.js";
 
 const required = z.string({ error: "is required" }).trim().min(1, { error: "is required" });
 
@@ -9,6 +10,9 @@ const envSchema = z.object({
     PORT: z.string().regex(/^\d{1,5}$/, { error: "must be a port number" }).optional(),
     TRUST_PROXY: z.string().optional(),
     HEALTHCHECK_TIMEOUT_MS: z.string().regex(/^\d+$/, { error: "must be a whole number of ms" }).optional(),
+    LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"], {
+        error: "must be fatal, error, warn, info, debug, trace or silent",
+    }).optional(),
 
     MONGODB_URI: required.regex(/^mongodb(\+srv)?:\/\//, {
         error: "must start with mongodb:// or mongodb+srv://",
@@ -74,7 +78,7 @@ const validateEnv = () => {
     const problems = findEnvProblems();
 
     if (problems.length) {
-        console.error(`Invalid environment configuration:\n${problems.map((p) => `  ${p}`).join("\n")}`);
+        logger.fatal({ problems }, "invalid environment configuration");
         process.exit(1);
     }
 };

@@ -5,6 +5,7 @@ import {
   RESUME_MISSING_TTL_MS,
   RESUME_CACHE_MAX_ENTRIES,
 } from '../constants.js'
+import { track, requestLog, msSince } from './requestStats.js'
 
 let minioClient
 
@@ -44,19 +45,25 @@ const writeCache = (fileName, exists) => {
 
 const objectKey = (fileName) => `${process.env.MINIO_PREFIX}/${fileName}`
 
-const getPresignedUrl = async (fileName, expirySeconds = RESUME_URL_EXPIRY_SECONDS) =>
-  getClient().presignedGetObject(
+const getPresignedUrl = async (fileName, expirySeconds = RESUME_URL_EXPIRY_SECONDS) => {
+  track('minio', { linksSigned: 1 })
+  return getClient().presignedGetObject(
     process.env.MINIO_BUCKET,
     objectKey(fileName),
     expirySeconds
   )
+}
 
 const objectExists = async (fileName) => {
   if (!fileName) return false
 
   const cached = readCache(fileName)
-  if (cached !== undefined) return cached
+  if (cached !== undefined) {
+    track('minio', { cacheHits: 1 })
+    return cached
+  }
 
+  const started = process.hrtime.bigint()
   try {
     await getClient().statObject(process.env.MINIO_BUCKET, objectKey(fileName))
     writeCache(fileName, true)
@@ -67,6 +74,8 @@ const objectExists = async (fileName) => {
       return false
     }
     throw error
+  } finally {
+    track('minio', { statCalls: 1, statMs: msSince(started) })
   }
 }
 
@@ -81,7 +90,7 @@ const getResumeUrl = async (fileName, expirySeconds = RESUME_URL_EXPIRY_SECONDS)
     if (!(await objectExists(fileName))) return null
     return await getPresignedUrl(fileName, expirySeconds)
   } catch (error) {
-    console.error(`resume url failed for "${fileName}":`, error.message)
+    requestLog().warn({ err: error, fileName }, 'resume url failed')
     return null
   }
 }

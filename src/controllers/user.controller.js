@@ -80,7 +80,7 @@ const createUser = asyncHandler(async (req, res) => {
         await sendWelcomeMail({ to: user.email, name: user.name, role: user.role });
         invited = true;
     } catch (error) {
-        console.error(`welcome mail to ${user.email} failed:`, error.message);
+        req.log.warn({ err: error, userId: user._id.toString() }, "welcome mail failed");
     }
 
     return res.status(201).json(new ApiResponse(201, "User created", { ...user.toJSON(), invited }));

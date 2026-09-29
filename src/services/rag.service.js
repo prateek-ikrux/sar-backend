@@ -1,10 +1,10 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
-import { StringOutputParser } from "@langchain/core/output_parsers";
 import { searchProfiles, redact } from "./profileRetriever.service.js";
 import { createConversation, appendTurn } from "./conversation.service.js";
 import { getResumeUrl } from "../utils/minio.js";
+import { track, msSince } from "../utils/requestStats.js";
 import {
     SEARCH_LIMIT_DEFAULT,
     CHARS_PER_DOCUMENT_DEFAULT,
@@ -145,6 +145,8 @@ const resolveConversation = async ({ question, limit, charsPerDocument, requireR
 // Bounded so the server always gives up before the client does (see
 // LLM_TIMEOUT_MS). A turn that fails or is abandoned is never appended to the
 // history, so a follow-up is never built on an answer the user did not see.
+// It yields messages rather than strings so the token counts OpenAI reports
+// come back with the text.
 const answerChain = () =>
     PROMPT.pipe(
         new ChatOpenAI({
@@ -154,7 +156,7 @@ const answerChain = () =>
             timeout: LLM_TIMEOUT_MS,
             maxRetries: LLM_MAX_RETRIES,
         })
-    ).pipe(new StringOutputParser());
+    );
 
 const chainInput = (conversation, question) => ({
     context: conversation.context,
@@ -162,6 +164,20 @@ const chainInput = (conversation, question) => ({
     history: conversation.messages.slice(-MAX_HISTORY_MESSAGES),
     question,
 });
+
+// Sizes, tokens and timing for the request's log line; never the text.
+const trackModelCall = ({ input, started, usage, outcome }) =>
+    track("llm", {
+        calls: 1,
+        model: process.env.OPENAI_MODEL,
+        contextChars: input.context.length,
+        historyMessages: input.history.length,
+        inputTokens: usage?.input_tokens,
+        cachedTokens: usage?.input_token_details?.cache_read,
+        outputTokens: usage?.output_tokens,
+        ms: msSince(started),
+        outcome,
+    });
 
 const recordTurn = (conversation, question, answer) =>
     appendTurn({
@@ -176,15 +192,32 @@ const recordTurn = (conversation, question, answer) =>
  * untouched.
  */
 const streamAnswer = async ({ conversation, question, signal, onToken }) => {
+    const input = chainInput(conversation, question);
+    const started = process.hrtime.bigint();
     let answer = "";
-    const stream = await answerChain().stream(chainInput(conversation, question), { signal });
+    let usage;
+    let outcome = "failed";
 
-    for await (const chunk of stream) {
-        answer += chunk;
-        onToken(chunk);
+    try {
+        const stream = await answerChain().stream(input, { signal });
+
+        for await (const chunk of stream) {
+            // The last chunk carries the token counts and no text.
+            usage = chunk.usage_metadata ?? usage;
+            if (!chunk.text) continue;
+            answer += chunk.text;
+            onToken(chunk.text);
+        }
+
+        signal?.throwIfAborted();
+        outcome = "ok";
+    } catch (error) {
+        if (signal?.aborted) outcome = "aborted";
+        throw error;
+    } finally {
+        trackModelCall({ input, started, usage, outcome });
     }
 
-    signal?.throwIfAborted();
     await recordTurn(conversation, question, answer);
 
     return answer;
@@ -200,7 +233,17 @@ const askProfiles = async ({ question, limit, charsPerDocument, requireResume, c
         userId,
     });
 
-    const answer = await answerChain().invoke(chainInput(active, question));
+    const input = chainInput(active, question);
+    const started = process.hrtime.bigint();
+    let message;
+
+    try {
+        message = await answerChain().invoke(input);
+    } finally {
+        trackModelCall({ input, started, usage: message?.usage_metadata, outcome: message ? "ok" : "failed" });
+    }
+
+    const answer = message.text;
     await recordTurn(active, question, answer);
 
     return {

@@ -4,6 +4,7 @@ import ApiResponse from "../utils/apiResponse.js";
 import { searchProfiles } from "../services/profileRetriever.service.js";
 import { askProfiles, openConversation, resolveConversation, streamAnswer } from "../services/rag.service.js";
 import { getConversation, beginTurn, endTurn, deleteConversation } from "../services/conversation.service.js";
+import { track } from "../utils/requestStats.js";
 
 // A conversation that is missing, expired or owned by someone else all answer
 // the same way: a 403 would confirm that an id belongs to a live conversation.
@@ -116,7 +117,12 @@ const askStreamController = asyncHandler(async (req, res) => {
     };
     res.on("close", onClose);
 
-    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    // A stream has no Content-Length, so its size is counted as it goes.
+    const send = (event, data) => {
+        const frame = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+        track("stream", { events: 1, bytes: Buffer.byteLength(frame) });
+        return res.write(frame);
+    };
 
     let active = existing;
     let created = false;
@@ -171,7 +177,7 @@ const askStreamController = asyncHandler(async (req, res) => {
         }
         if (!opened) throw error;
 
-        console.error(`${req.method} ${req.originalUrl} failed mid-stream:`, error);
+        req.log.error({ err: error }, "stream failed after it opened");
         const clientError = error instanceof ApiError && error.statusCode < 500;
         send("error", {
             statusCode: clientError ? error.statusCode : 500,
