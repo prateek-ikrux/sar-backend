@@ -2,20 +2,20 @@ import { getProfilesCollection } from "../db/index.js";
 import { getResumeUrl, getPresignedUrl, objectExists } from "../utils/minio.js";
 import { VECTOR_INDEX, VECTOR_SEARCH_PATH, MAX_CANDIDATES, EXISTENCE_BATCH } from "../constants.js";
 import { redact } from "../utils/redact.js";
-import { summarizeProfile } from "./profileSummary.service.js";
+import { findCandidateName } from "./candidateName.js";
 
 // Resumes land from a separate pipeline over time, so a stored has_resume flag
 // would go stale. Availability is checked live instead, and only ever improves.
-// The summary is built here, while the full document is still at hand; the
+// The name is found here, while the full document is still at hand; the
 // document itself is stripped before anything reaches the client.
-const toResult = (profile, resumeUrl, query) => ({
+const toResult = (profile, resumeUrl) => ({
     id: profile._id.toString(),
     fileName: profile.file_name,
     email: profile.email,
     phone: profile.phone,
     score: profile.score,
     resumeUrl,
-    summary: summarizeProfile(profile.document, query, profile.email),
+    summary: { name: findCandidateName(profile.document, profile.email) },
     document: profile.document ?? "",
 });
 
@@ -74,7 +74,7 @@ const searchProfiles = async ({ query, limit, requireResume = false, includeDocu
         const results = await runVectorSearch({ query, limit, includeDocument });
 
         return Promise.all(
-            results.map(async (profile) => toResult(profile, await getResumeUrl(profile.file_name), query))
+            results.map(async (profile) => toResult(profile, await getResumeUrl(profile.file_name)))
         );
     }
 
@@ -99,11 +99,7 @@ const searchProfiles = async ({ query, limit, requireResume = false, includeDocu
                 console.error(`resume url failed for "${profile.file_name}":`, error.message);
             }
 
-            return toResult(
-                { ...profile, document: documents.get(profile._id.toString()) ?? "" },
-                resumeUrl,
-                query
-            );
+            return toResult({ ...profile, document: documents.get(profile._id.toString()) ?? "" }, resumeUrl);
         })
     );
 };

@@ -5,7 +5,7 @@ import ApiResponse from "../utils/apiResponse.js";
 import ShortlistItem from "../models/shortlist.model.js";
 import { getProfilesCollection } from "../db/index.js";
 import { getResumeUrl } from "../utils/minio.js";
-import { summarizeProfile } from "../services/profileSummary.service.js";
+import { findCandidateName } from "../services/candidateName.js";
 import { EXISTENCE_BATCH, SHORTLIST_MAX_ITEMS } from "../constants.js";
 
 // Search results stringify profile ids, so a saved id is matched in both
@@ -22,7 +22,7 @@ const toClient = (item, live, resumeUrl) => ({
     fileName: live?.file_name ?? item.file_name,
     email: live?.email ?? item.email,
     phone: live?.phone ?? item.phone,
-    summary: { name: item.name ?? null, snippet: item.snippet, terms: item.terms ?? [] },
+    summary: { name: item.name ?? null },
     query: item.query,
     note: item.note,
     savedAt: item.created_at,
@@ -82,7 +82,6 @@ const addToShortlist = asyncHandler(async (req, res) => {
             ]);
         }
 
-        const { name, snippet, terms } = summarizeProfile(profile.document, query, profile.email);
         try {
             item = (
                 await ShortlistItem.create({
@@ -91,9 +90,7 @@ const addToShortlist = asyncHandler(async (req, res) => {
                     file_name: profile.file_name ?? null,
                     email: profile.email ?? null,
                     phone: profile.phone ?? null,
-                    name,
-                    snippet,
-                    terms,
+                    name: findCandidateName(profile.document, profile.email),
                     query,
                     note,
                 })

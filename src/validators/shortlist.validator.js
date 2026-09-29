@@ -15,7 +15,7 @@ const note = z
 
 const addToShortlistSchema = z.strictObject({
     profileId,
-    // The search it was saved from; also what the saved summary is built for.
+    // The search it was saved from.
     query: z.string({ error: "must be a string" }).trim().max(1000, { error: "must be at most 1000 characters" }).optional(),
     // Lets an undone removal come back with its note.
     note: note.optional(),

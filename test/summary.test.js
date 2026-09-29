@@ -1,70 +1,20 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { summarizeProfile, termsOf } from "../src/services/profileSummary.service.js";
 import { findCandidateName } from "../src/services/candidateName.js";
 import welcomeTemplate from "../src/templates/welcome.template.js";
 import otpTemplate from "../src/templates/otp.template.js";
 
-const RESUME = `# Priya Sharma | priya@example.com | +91 98765 43210
-
-## Summary
-Backend engineer with 6 years building APIs.
-
-## Experience
-- Built payment services in **Node.js** and MongoDB at Acme (2018-2022).
-- Led a team of four on a React dashboard.`;
-
-describe("termsOf", () => {
-    it("drops filler words and bare numbers but keeps tech tokens whole", () => {
-        assert.deepEqual(termsOf("Senior backend engineer with Node.js and C++, 5+ years"), [
-            "senior",
-            "backend",
-            "engineer",
-            "node.js",
-            "c++",
-        ]);
-    });
-});
-
-describe("summarizeProfile", () => {
-    it("finds the name on a heading line, without contact details", () => {
-        assert.equal(summarizeProfile(RESUME, "node", "priya.s@example.com").name, "Priya Sharma");
-    });
-
-    it("cleans converter noise out of the snippet", () => {
-        const { snippet } = summarizeProfile("<!-- image -->\nLed R&amp;D on Kafka pipelines <!-- image -->", "kafka");
-        assert.equal(snippet, "Led R&D on Kafka pipelines");
-    });
-
-    it("picks the passage sharing the most query words", () => {
-        const { snippet, terms } = summarizeProfile(RESUME, "Node.js MongoDB developer");
-        assert.equal(snippet, "Built payment services in Node.js and MongoDB at Acme (2018-2022).");
-        assert.deepEqual(terms, ["Node.js", "MongoDB"]);
-    });
-
-    it("never leaks an email or phone number into the snippet", () => {
-        const { snippet } = summarizeProfile("Reach me at a@b.com or +91 98765 43210 about Kafka", "kafka");
-        assert.equal(snippet.includes("a@b.com"), false);
-        assert.equal(snippet.includes("98765"), false);
-    });
-
-    it("returns nothing it cannot back up", () => {
-        assert.deepEqual(summarizeProfile("", "react"), { name: null, snippet: null, terms: [] });
-        assert.equal(summarizeProfile(RESUME, "kubernetes").snippet, null);
-    });
-
-    it("trims a long passage around the first match", () => {
-        // One sentence, so it cannot be split into shorter passages first.
-        const long = `${"worked on many internal tools, ".repeat(12)}then migrated the platform to Kubernetes`;
-        const { snippet } = summarizeProfile(long, "kubernetes");
-        assert.ok(snippet.length <= 201);
-        assert.ok(snippet.includes("Kubernetes"));
-        assert.ok(snippet.startsWith("…"));
-    });
-});
-
 // Shapes seen in the real library (converted PDFs); the names are made up.
 describe("findCandidateName", () => {
+    it("finds the name on a heading line, without contact details", () => {
+        const doc = "# Priya Sharma | priya@example.com | +91 98765 43210\n\n## Summary\nBackend engineer.";
+        assert.equal(findCandidateName(doc, "priya.s@example.com"), "Priya Sharma");
+    });
+
+    it("returns null for an empty resume", () => {
+        assert.equal(findCandidateName("", "priya@example.com"), null);
+    });
+
     it("skips placeholders and section headings to reach the name", () => {
         const doc = "<!-- image -->\n## Professional Summary\n## RAVI KIRAN DESAI\nravi.desai88@mail.com";
         assert.equal(findCandidateName(doc, "ravi.desai88@mail.com"), "Ravi Kiran Desai");

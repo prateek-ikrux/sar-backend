@@ -1,8 +1,8 @@
 import { Schema, model } from "mongoose";
 
-// One saved candidate on one user's shortlist. Contact details and the
-// summary are a snapshot from when it was saved: the list refreshes them from
-// the profiles collection, and falls back to this copy if the profile is gone.
+// One saved candidate on one user's shortlist. Contact details and the name
+// are a snapshot from when it was saved: the list refreshes contact details
+// from the profiles collection, and falls back to this copy if the profile is gone.
 const shortlistItemSchema = new Schema(
     {
         user_id: {
@@ -21,8 +21,6 @@ const shortlistItemSchema = new Schema(
         phone: { type: String, default: null },
         // As found in the resume; null when it wasn't clear.
         name: { type: String, default: null },
-        snippet: { type: String, default: null },
-        terms: { type: [String], default: [] },
         // The search it was saved from, so the list can say why it's there.
         query: { type: String, default: "" },
         note: { type: String, default: "" },

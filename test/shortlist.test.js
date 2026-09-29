@@ -61,11 +61,10 @@ beforeEach(async () => {
 });
 
 describe("shortlist", () => {
-    it("saves a candidate with a summary for the search it came from, once", async () => {
+    it("saves a candidate with their name for the search it came from, once", async () => {
         const first = await add(ann, { profileId: profileIds[0].toString(), query: "node developer" });
         assert.equal(first.status, 201);
-        assert.equal(first.body.data.summary.name, "Priya Sharma");
-        assert.deepEqual(first.body.data.summary.terms, ["Node"]);
+        assert.deepEqual(first.body.data.summary, { name: "Priya Sharma" });
         assert.equal(first.body.data.query, "node developer");
 
         await add(ann, { profileId: profileIds[0].toString(), query: "something else" });
