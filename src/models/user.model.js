@@ -9,7 +9,8 @@ const userSchema = new Schema(
             required: true,
             trim: true,
             lowercase: true,
-            unique: true,
+            // Unique via uniq_email below, not `unique: true`, which would
+            // declare a second index under Mongoose's default name.
         },
         name: {
             type: String,
@@ -35,11 +36,14 @@ const userSchema = new Schema(
         // The collection stores created_at, not createdAt.
         timestamps: { createdAt: "created_at", updatedAt: false },
         versionKey: false,
-        // uniq_email already exists on the collection; letting Mongoose build
-        // its own index from `unique: true` would create a duplicate.
-        autoIndex: false,
     }
 );
+
+// Mirrors the index already on the collection, name and options included, so
+// building it at startup is a no-op there and a fresh database gets it too.
+// createUser has no lookup of its own: this index is what turns a duplicate
+// email into the 409.
+userSchema.index({ email: 1 }, { unique: true, name: "uniq_email" });
 
 userSchema.methods.generateAccessToken = function () {
     return jwt.sign(

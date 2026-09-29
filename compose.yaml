@@ -16,6 +16,9 @@ services:
     env_file:
       - .env
     environment:
+      # Wins over .env, so a NODE_ENV=development kept there for local runs
+      # can never turn on stack traces in this container
+      - NODE_ENV=production
       # Pin the in-container port so the mapping and healthcheck always match
       - PORT=8000
     ports:

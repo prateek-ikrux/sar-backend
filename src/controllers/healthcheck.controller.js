@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiResponse from "../utils/apiResponse.js";
 import { getClient as getMinioClient } from "../utils/minio.js";
+import { getAccessToken } from "../utils/mailer.js";
 
 const CHECK_TIMEOUT_MS = Number(process.env.HEALTHCHECK_TIMEOUT_MS) || 5000;
 
@@ -42,7 +43,14 @@ const runCheck = async (name, check) => {
         const details = await withTimeout(check());
         return { name, status: "ok", latencyMs: Date.now() - startedAt, ...details };
     } catch (error) {
-        return { name, status: "error", latencyMs: Date.now() - startedAt, message: error.message };
+        // An ApiError keeps its specifics (Graph's reason, say) in `errors`.
+        const detail = error.errors?.length ? `: ${error.errors.join("; ")}` : "";
+        return {
+            name,
+            status: "error",
+            latencyMs: Date.now() - startedAt,
+            message: `${error.message}${detail}`,
+        };
     }
 };
 
@@ -75,25 +83,11 @@ const checkOpenAI = async () => {
     return { model: process.env.OPENAI_MODEL };
 };
 
+// The same token path sendMail uses, so this reports what a real send would
+// hit. A token cached within the last hour answers without a round trip, just
+// as it would for a send.
 const checkGraph = async () => {
-    const response = await fetchWithTimeout(
-        `https://login.microsoftonline.com/${process.env.GRAPH_TENANT_ID}/oauth2/v2.0/token`,
-        {
-            method: "POST",
-            body: new URLSearchParams({
-                client_id: process.env.GRAPH_CLIENT_ID,
-                client_secret: process.env.GRAPH_CLIENT_SECRET,
-                scope: "https://graph.microsoft.com/.default",
-                grant_type: "client_credentials",
-            }),
-        }
-    );
-    if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(
-            payload.error_description?.split(/\r?\n/)[0] ?? `responded ${response.status}`
-        );
-    }
+    await getAccessToken();
     return { sender: process.env.GRAPH_SENDER };
 };
 

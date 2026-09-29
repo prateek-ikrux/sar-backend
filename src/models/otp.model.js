@@ -46,10 +46,19 @@ const otpSchema = new Schema(
         collection: "otp_codes",
         timestamps: { createdAt: "created_at", updatedAt: false },
         versionKey: false,
-        // by_email and ttl_expired_codes already exist on the collection.
-        autoIndex: false,
     }
 );
+
+// Both mirror the indexes already on the collection, names and options
+// included, so building them at startup is a no-op there and a fresh database
+// gets them too.
+
+// Serves every lookup here: the live code for an address, newest first.
+otpSchema.index({ email: 1, created_at: -1 }, { name: "by_email" });
+
+// MongoDB deletes each code an hour after it expires, so the collection (and
+// the IPs and user agents it records) never grows past recent sign-ins.
+otpSchema.index({ expires_at: 1 }, { expireAfterSeconds: 3600, name: "ttl_expired_codes" });
 
 const Otp = model("Otp", otpSchema);
 

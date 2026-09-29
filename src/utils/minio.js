@@ -86,22 +86,9 @@ const getResumeUrl = async (fileName, expirySeconds = RESUME_URL_EXPIRY_SECONDS)
   }
 }
 
-const cacheStats = () => {
-  let exists = 0
-  let missing = 0
-  for (const entry of existenceCache.values()) {
-    if (entry.expiresAt > Date.now()) entry.exists ? (exists += 1) : (missing += 1)
-  }
-  return { exists, missing, size: existenceCache.size }
-}
-
-const clearExistenceCache = () => existenceCache.clear()
-
 export {
   getClient,
   getPresignedUrl,
   getResumeUrl,
   objectExists,
-  cacheStats,
-  clearExistenceCache,
 }

@@ -24,4 +24,4 @@ const getAtsConnection = () => {
 const getProfilesCollection = () =>
   getAtsConnection().collection(process.env.PROFILES_COLLECTION);
 
-export { getAtsConnection, getProfilesCollection, connectDB };
+export { getProfilesCollection, connectDB };

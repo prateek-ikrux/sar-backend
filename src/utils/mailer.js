@@ -1,6 +1,7 @@
 import ApiError from "./apiError.js";
 import { MICROSOFT_GRAPH_SCOPE, MICROSOFT_GET_TOKEN, MICROSOFT_SEND_MAIL } from "../constants.js";
 import otpTemplate from "../templates/otp.template.js";
+import welcomeTemplate from "../templates/welcome.template.js";
 
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -94,7 +95,10 @@ const sendMail = async ({ to, subject, html, text }) => {
 const sendOtpMail = async ({ to, code, name, expiryMinutes }) => {
     if (!code) throw new ApiError(422, "sendOtpMail requires a code");
 
-    return sendMail({ to, ...otpTemplate({ code, name, expiryMinutes }) });
+    return sendMail({ to, ...otpTemplate({ code, name, expiryMinutes, appUrl: process.env.APP_URL }) });
 };
 
-export { sendMail, sendOtpMail };
+const sendWelcomeMail = async ({ to, name, role }) =>
+    sendMail({ to, ...welcomeTemplate({ name, role, appUrl: process.env.APP_URL }) });
+
+export { getAccessToken, sendMail, sendOtpMail, sendWelcomeMail };

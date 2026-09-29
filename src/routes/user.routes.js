@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { listUsers, getUser, createUser, updateUser, deleteUser } from "../controllers/user.controller.js";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { verifyJWT, requireRole } from "../middlewares/auth.middleware.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import {
     createUserSchema,
@@ -8,10 +8,11 @@ import {
     userIdParamSchema,
     listUsersQuerySchema,
 } from "../validators/user.validator.js";
+import { ROLES } from "../constants.js";
 
 const router = Router();
 
-router.use("/users", verifyJWT);
+router.use("/users", verifyJWT, requireRole(ROLES.ADMIN));
 
 router.route("/users/list").get(validate({ query: listUsersQuerySchema }), listUsers);
 router.route("/users/create").post(validate({ body: createUserSchema }), createUser);

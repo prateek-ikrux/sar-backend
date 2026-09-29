@@ -7,8 +7,21 @@ import {
     CHARS_PER_DOCUMENT_MIN,
     CHARS_PER_DOCUMENT_MAX,
     CHARS_PER_DOCUMENT_DEFAULT,
+    MAX_CONTEXT_CHARS,
     REQUIRE_RESUME_DEFAULT,
 } from "../constants.js";
+
+// Each bound alone allows 40 x 20000; only the product says how much resume
+// text the model is sent on every turn.
+const checkContextSize = (ctx, limit, charsPerDocument) => {
+    if (limit * charsPerDocument <= MAX_CONTEXT_CHARS) return;
+
+    ctx.addIssue({
+        code: "custom",
+        path: ["charsPerDocument"],
+        message: `limit x charsPerDocument must be at most ${MAX_CONTEXT_CHARS} (got ${limit} x ${charsPerDocument}); lower one of them`,
+    });
+};
 
 const query = requiredString()
     .trim()
@@ -33,12 +46,14 @@ const conversationId = requiredString()
 
 const requireResume = z.boolean({ error: "must be true or false" }).default(REQUIRE_RESUME_DEFAULT);
 
-const searchProfilesSchema = z.strictObject({
-    query,
-    requireResume,
-    limit: limitBase.default(SEARCH_LIMIT_DEFAULT),
-    charsPerDocument: charsPerDocumentBase.default(CHARS_PER_DOCUMENT_DEFAULT),
-});
+const searchProfilesSchema = z
+    .strictObject({
+        query,
+        requireResume,
+        limit: limitBase.default(SEARCH_LIMIT_DEFAULT),
+        charsPerDocument: charsPerDocumentBase.default(CHARS_PER_DOCUMENT_DEFAULT),
+    })
+    .superRefine((body, ctx) => checkContextSize(ctx, body.limit, body.charsPerDocument));
 
 // limit and charsPerDocument stay optional rather than defaulted: a default
 // would make them indistinguishable from values the caller actually sent, and
@@ -52,7 +67,16 @@ const askProfilesSchema = z
         charsPerDocument: charsPerDocumentBase.optional(),
     })
     .superRefine((body, ctx) => {
-        if (!body.conversationId) return;
+        // Opening a conversation: check the size it will be pinned at, with
+        // the same defaults askProfiles resolves omitted fields to.
+        if (!body.conversationId) {
+            checkContextSize(
+                ctx,
+                body.limit ?? SEARCH_LIMIT_DEFAULT,
+                body.charsPerDocument ?? CHARS_PER_DOCUMENT_DEFAULT
+            );
+            return;
+        }
 
         for (const field of ["limit", "charsPerDocument", "requireResume"]) {
             if (body[field] !== undefined) {

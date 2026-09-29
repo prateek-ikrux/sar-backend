@@ -16,7 +16,10 @@ USER node
 # Copy package files
 COPY --chown=node:node package.json package-lock.json ./
 
-# Install dependencies (clean, lockfile-exact install)
+# Install dependencies (clean, lockfile-exact install). The test-only
+# mongodb-memory-server would otherwise download a ~780 MB MongoDB binary here;
+# tests run on the host, so skip it.
+ENV MONGOMS_DISABLE_POSTINSTALL=1
 RUN npm ci
 
 # Copy rest of the source code

@@ -1,6 +1,8 @@
 import ApiError from "../utils/apiError.js";
 
-const isProduction = () => process.env.NODE_ENV === "production";
+// Opt-in rather than opt-out: a server started without NODE_ENV (plain
+// `npm start`) must not leak internals.
+const isDevelopment = () => process.env.NODE_ENV === "development";
 
 const notFound = (req, res, next) => {
     next(new ApiError(404, `Route not found: ${req.method} ${req.originalUrl}`));
@@ -25,6 +27,10 @@ const errorHandler = (err, req, res, next) => {
 
     if (statusCode >= 500) {
         console.error(`${req.method} ${req.originalUrl} failed:`, err);
+        // A 5xx's detail comes from upstream services (Graph's error
+        // descriptions, for one) and is for the logs above, not the client.
+        // The message still says what failed.
+        if (!isDevelopment()) errors = [];
     }
 
     return res.status(statusCode).json({
@@ -33,7 +39,7 @@ const errorHandler = (err, req, res, next) => {
         data: null,
         success: false,
         errors,
-        ...(isProduction() ? {} : { stack: err?.stack }),
+        ...(isDevelopment() ? { stack: err?.stack } : {}),
     });
 };
 

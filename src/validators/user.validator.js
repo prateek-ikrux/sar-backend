@@ -41,6 +41,16 @@ const listUsersQuerySchema = z.strictObject({
         .min(1, { error: "must be at least 1" })
         .max(100, { error: "must be at most 100" })
         .default(20),
+    // Matched against name and email, anywhere in either.
+    q: z.string({ error: "must be a string" }).trim().max(100, { error: "must be at most 100 characters" }).optional(),
+    role: role.optional(),
+    status: z.enum(["active", "disabled"], { error: "must be active or disabled" }).optional(),
+    sort: z
+        .enum(["name", "email", "role", "created_at", "last_login_at"], {
+            error: "must be one of: name, email, role, created_at, last_login_at",
+        })
+        .default("created_at"),
+    order: z.enum(["asc", "desc"], { error: "must be asc or desc" }).default("desc"),
 });
 
 export {

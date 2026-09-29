@@ -109,8 +109,6 @@ const deleteConversation = async ({ conversationId, userId }) => {
     return true;
 };
 
-const conversationCount = () => conversations.size;
-
 export {
     createConversation,
     getConversation,
@@ -118,5 +116,4 @@ export {
     beginTurn,
     endTurn,
     deleteConversation,
-    conversationCount,
 };

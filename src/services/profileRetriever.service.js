@@ -1,32 +1,21 @@
-import { BaseRetriever } from "@langchain/core/retrievers";
-import { Document } from "@langchain/core/documents";
 import { getProfilesCollection } from "../db/index.js";
 import { getResumeUrl, getPresignedUrl, objectExists } from "../utils/minio.js";
-import {
-    VECTOR_INDEX,
-    VECTOR_SEARCH_PATH,
-    PHONE_DIGITS_MIN,
-    PHONE_DIGITS_MAX,
-    MAX_CANDIDATES,
-    EXISTENCE_BATCH,
-} from "../constants.js";
-
-const EMAIL_PATTERN = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
-
-// Digit runs are only treated as phone numbers at 10-15 digits. A looser
-// pattern redacts employment dates such as "2018-2022", which the model needs
-// in order to answer anything about tenure.
-const DIGIT_RUN_PATTERN = /\+?\d[\d\s().-]{7,}\d/g;
+import { VECTOR_INDEX, VECTOR_SEARCH_PATH, MAX_CANDIDATES, EXISTENCE_BATCH } from "../constants.js";
+import { redact } from "../utils/redact.js";
+import { summarizeProfile } from "./profileSummary.service.js";
 
 // Resumes land from a separate pipeline over time, so a stored has_resume flag
 // would go stale. Availability is checked live instead, and only ever improves.
-const toResult = (profile, resumeUrl) => ({
+// The summary is built here, while the full document is still at hand; the
+// document itself is stripped before anything reaches the client.
+const toResult = (profile, resumeUrl, query) => ({
     id: profile._id.toString(),
     fileName: profile.file_name,
     email: profile.email,
     phone: profile.phone,
     score: profile.score,
     resumeUrl,
+    summary: summarizeProfile(profile.document, query, profile.email),
     document: profile.document ?? "",
 });
 
@@ -85,7 +74,7 @@ const searchProfiles = async ({ query, limit, requireResume = false, includeDocu
         const results = await runVectorSearch({ query, limit, includeDocument });
 
         return Promise.all(
-            results.map(async (profile) => toResult(profile, await getResumeUrl(profile.file_name)))
+            results.map(async (profile) => toResult(profile, await getResumeUrl(profile.file_name), query))
         );
     }
 
@@ -112,50 +101,11 @@ const searchProfiles = async ({ query, limit, requireResume = false, includeDocu
 
             return toResult(
                 { ...profile, document: documents.get(profile._id.toString()) ?? "" },
-                resumeUrl
+                resumeUrl,
+                query
             );
         })
     );
 };
 
-const redact = (text) =>
-    text.replace(EMAIL_PATTERN, "[email redacted]").replace(DIGIT_RUN_PATTERN, (match) => {
-        const digits = match.replace(/\D/g, "").length;
-        return digits >= PHONE_DIGITS_MIN && digits <= PHONE_DIGITS_MAX ? "[phone redacted]" : match;
-    });
-
-class ProfileRetriever extends BaseRetriever {
-    // lc_namespace = ["sar", "retrievers", "profiles"];
-
-    constructor({ limit = 5, charsPerDocument = 4000 } = {}) {
-        super();
-        this.limit = limit;
-        this.charsPerDocument = charsPerDocument;
-        this.lastResults = [];
-    }
-
-    async _getRelevantDocuments(query) {
-        const profiles = await searchProfiles({ query, limit: this.limit });
-
-        this.lastResults = profiles;
-
-        return profiles.map(
-            (profile) =>
-                new Document({
-                    pageContent: redact(profile.document.slice(0, this.charsPerDocument)),
-                    metadata: {
-                        id: profile.id,
-                        fileName: profile.fileName,
-                        score: profile.score,
-                    },
-                })
-        );
-    }
-}
-
-export {
-    ProfileRetriever,
-    searchProfiles,
-    collectWithResumes,
-    redact,
-};
+export { searchProfiles, redact };
