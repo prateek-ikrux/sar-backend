@@ -26,7 +26,7 @@ RUN npm ci
 COPY --chown=node:node . .
 
 # Expose the API port
-EXPOSE 8000
+EXPOSE 9000
 
 # Restart the server whenever a file under src/ changes
 CMD ["node", "--watch", "src/index.js"]

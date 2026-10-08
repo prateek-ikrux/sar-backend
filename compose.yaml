@@ -1,7 +1,7 @@
 # Usage:
 #   Dev  (auto-restart): docker compose up --watch dev
 #   Prod:                docker compose up --build -d prod
-# Profiles keep a bare `docker compose up` from starting both on port 8000.
+# Profiles keep a bare `docker compose up` from starting both on port 9000.
 #
 # MongoDB (Atlas) and object storage are external, so there are no database
 # services here; all connection settings come from .env.
@@ -20,14 +20,14 @@ services:
       # can never turn on stack traces in this container
       - NODE_ENV=production
       # Pin the in-container port so the mapping and healthcheck always match
-      - PORT=8000
+      - PORT=9000
       # nginx on the host is the only client (see the loopback binding below),
       # so trust its one X-Forwarded-For hop and rate limits see the real IP
       - TRUST_PROXY=1
     ports:
-      # Loopback only: Docker's published ports bypass ufw, so a bare "8000:8000"
+      # Loopback only: Docker's published ports bypass ufw, so a bare "9000:9000"
       # would expose the API over plain HTTP next to nginx
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:9000:9000"
     restart: unless-stopped
     # Docker's default json-file driver never rotates, so logs would grow until
     # the disk fills; keep at most 3 x 10 MB per container
@@ -48,9 +48,9 @@ services:
       - .env
     environment:
       - NODE_ENV=development
-      - PORT=8000
+      - PORT=9000
     ports:
-      - "8000:8000"
+      - "9000:9000"
     develop:
       watch:
         - action: sync

@@ -8,7 +8,7 @@ import logger from "./utils/logger.js";
 // in compose. Checked before anything tries to use it.
 validateEnv();
 
-const PORT = Number(process.env.PORT) || 8000;
+const PORT = Number(process.env.PORT) || 9000;
 
 // Long enough for an in-flight answer to finish on a normal deploy, short
 // enough that a hung request cannot keep the container from stopping.

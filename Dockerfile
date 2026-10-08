@@ -24,12 +24,12 @@ COPY src ./src
 # Run the container as a non-root user for security best practices
 USER node
 
-# Expose the API port (compose pins PORT=8000 inside the container)
-EXPOSE 8000
+# Expose the API port (compose pins PORT=9000 inside the container)
+EXPOSE 9000
 
 # Liveness probe against the lightweight health route (no dependency checks)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -qO /dev/null "http://127.0.0.1:${PORT:-8000}/api/v1/health" || exit 1
+  CMD wget -qO /dev/null "http://127.0.0.1:${PORT:-9000}/api/v1/health" || exit 1
 
 # Config comes from the container environment (env_file in compose), not .env
 CMD ["node", "src/index.js"]
