@@ -6,11 +6,28 @@ import ApiResponse from "../utils/apiResponse.js";
 import User from "../models/user.model.js";
 import Otp from "../models/otp.model.js";
 import { sendOtpMail } from "../utils/mailer.js";
+import { recordActivity } from "../services/activity.service.js";
 import {
+    ACTIVITY,
     OTP_LENGTH,
     OTP_EXPIRY_MINUTES,
     OTP_MAX_ATTEMPTS,
+    USER_AGENT_MAX_CHARS,
 } from "../constants.js";
+
+// Where a sign-in came from, for the admin's login history.
+const clientOf = (req) => ({
+    ip: req.ip,
+    userAgent: req.get("user-agent")?.slice(0, USER_AGENT_MAX_CHARS),
+});
+
+// Only attempts on a real account are kept, against that account. A wrong
+// address has no one to attribute it to, and the rate limits already cover it.
+const recordFailedLogin = async (req, { email, userId, reason }) => {
+    const id = userId ?? (email ? (await User.findOne({ email }, { _id: 1 }).lean())?._id : undefined);
+    if (!id) return;
+    await recordActivity({ userId: id, type: ACTIVITY.LOGIN_FAILED, meta: { ...clientOf(req), reason } });
+};
 
 const generateCode = () =>
     String(crypto.randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, "0");
@@ -84,12 +101,14 @@ const verifyOtp = asyncHandler(async (req, res) => {
     );
 
     if (!otp || !(await argon2.verify(otp.code_hash, code))) {
+        await recordFailedLogin(req, { email, userId: otp?.user_id, reason: otp ? "wrong_code" : "no_valid_code" });
         throw invalid;
     }
 
     const user = await User.findById(otp.user_id);
 
     if (!user?.active) {
+        await recordFailedLogin(req, { userId: user?._id, reason: "disabled" });
         throw invalid;
     }
 
@@ -106,6 +125,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
     user.last_login_at = new Date();
     await user.save();
+    await recordActivity({ userId: user._id, type: ACTIVITY.LOGIN, meta: clientOf(req) });
 
     return res.status(200).json(
         new ApiResponse(200, "Signed in", {

@@ -2,7 +2,6 @@ import { z } from "zod";
 import logger from "../utils/logger.js";
 
 const required = z.string({ error: "is required" }).trim().min(1, { error: "is required" });
-
 const envSchema = z.object({
     NODE_ENV: z.enum(["development", "production", "test"], {
         error: "must be development, production or test",

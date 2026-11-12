@@ -1,17 +1,13 @@
-import mongoose from "mongoose";
 import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/apiError.js";
 import ApiResponse from "../utils/apiResponse.js";
 import ShortlistItem from "../models/shortlist.model.js";
 import { getProfilesCollection } from "../db/index.js";
 import { getResumeUrl } from "../utils/minio.js";
+import { idForms } from "../utils/profileId.js";
 import { findCandidateName } from "../services/candidateName.js";
-import { EXISTENCE_BATCH, SHORTLIST_MAX_ITEMS } from "../constants.js";
-
-// Search results stringify profile ids, so a saved id is matched in both
-// forms: as an ObjectId (what the ATS stores in practice) and as given.
-const idForms = (id) =>
-    /^[0-9a-f]{24}$/i.test(id) ? [new mongoose.Types.ObjectId(id), id] : [id];
+import { recordActivity } from "../services/activity.service.js";
+import { ACTIVITY, EXISTENCE_BATCH, SHORTLIST_MAX_ITEMS } from "../constants.js";
 
 const CONTACT = { file_name: 1, email: 1, phone: 1 };
 
@@ -95,6 +91,13 @@ const addToShortlist = asyncHandler(async (req, res) => {
                     note,
                 })
             ).toObject();
+            // Only a new save is recorded: pressing it twice is one save.
+            await recordActivity({
+                userId,
+                type: ACTIVITY.SHORTLIST_ADD,
+                profileIds: [profileId],
+                query: query || undefined,
+            });
         } catch (error) {
             // Two saves raced; the other one won, which is the same outcome.
             if (error.code !== 11000) throw error;
@@ -130,6 +133,8 @@ const removeFromShortlist = asyncHandler(async (req, res) => {
     if (!deletedCount) {
         throw new ApiError(404, "Not on your shortlist");
     }
+
+    await recordActivity({ userId: req.user._id, type: ACTIVITY.SHORTLIST_REMOVE, profileIds: [profileId] });
 
     return res.status(200).json(new ApiResponse(200, "Removed from shortlist", { profileId }));
 });

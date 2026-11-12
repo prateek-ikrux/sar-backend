@@ -4,7 +4,55 @@ import ApiResponse from "../utils/apiResponse.js";
 import { searchProfiles } from "../services/profileRetriever.service.js";
 import { askProfiles, openConversation, resolveConversation, streamAnswer } from "../services/rag.service.js";
 import { getConversation, beginTurn, endTurn, deleteConversation } from "../services/conversation.service.js";
-import { track } from "../utils/requestStats.js";
+import { recordActivity, teamActivityFor, excludedProfileIds } from "../services/activity.service.js";
+import { track, requestLog } from "../utils/requestStats.js";
+import { ACTIVITY } from "../constants.js";
+
+/**
+ * Candidates as a recruiter's screen gets them: without contact details,
+ * which are revealed one candidate at a time (and recorded, see
+ * candidate.controller), and with what the team has done with each. The team
+ * summary is a nicety; if it fails the results still go out, with team null.
+ */
+const present = async (profiles, userId) => {
+    const team = await teamActivityFor({ userId, profileIds: profiles.map((profile) => profile.id) }).catch(
+        (error) => {
+            requestLog().warn({ err: error }, "team activity unavailable");
+            return new Map();
+        }
+    );
+
+    return profiles.map(({ document, email, phone, ...profile }) => ({
+        ...profile,
+        hasEmail: Boolean(email),
+        hasPhone: Boolean(phone),
+        team: team.get(profile.id) ?? null,
+    }));
+};
+
+const recordResults = ({ userId, profiles, query, meta }) =>
+    recordActivity({
+        userId,
+        type: ACTIVITY.SEARCH_RESULTS,
+        profileIds: profiles.map((profile) => profile.id),
+        query,
+        meta: { count: profiles.length, ...meta },
+    });
+
+// With the model's token counts, so admins can see what each recruiter's
+// questions cost. An answer that was stopped part-way isn't recorded.
+const recordQuestion = ({ userId, question, conversation, tokens }) =>
+    recordActivity({
+        userId,
+        type: ACTIVITY.QUESTION,
+        query: question,
+        meta: {
+            conversationId: conversation.id,
+            turn: conversation.turns,
+            model: process.env.OPENAI_MODEL,
+            ...(tokens ?? {}),
+        },
+    });
 
 // A conversation that is missing, expired or owned by someone else all answer
 // the same way: a 403 would confirm that an id belongs to a live conversation.
@@ -14,10 +62,11 @@ const conversationNotFound = () =>
     ]);
 
 const searchProfilesController = asyncHandler(async (req, res) => {
-    const { query, limit, charsPerDocument, requireResume } = req.validated.body;
+    const { query, limit, charsPerDocument, requireResume, hideMine, hideTeam } = req.validated.body;
     const userId = req.user._id.toString();
 
-    const profiles = await searchProfiles({ query, limit, requireResume });
+    const exclude = await excludedProfileIds({ userId, hideMine, hideTeam });
+    const profiles = await searchProfiles({ query, limit, requireResume, exclude });
 
     const conversation = await openConversation({
         userId,
@@ -25,6 +74,14 @@ const searchProfilesController = asyncHandler(async (req, res) => {
         profiles,
         limit,
         charsPerDocument,
+    });
+
+    const results = await present(profiles, userId);
+    await recordResults({
+        userId,
+        profiles,
+        query,
+        meta: { source: "search", requireResume, hideMine, hideTeam },
     });
 
     return res.status(200).json(
@@ -35,13 +92,14 @@ const searchProfilesController = asyncHandler(async (req, res) => {
             count: profiles.length,
             pinnedForChat: conversation.sources.length,
             conversationId: conversation.id,
-            results: profiles.map(({ document, ...profile }) => profile),
+            results,
         })
     );
 });
 
 const askProfilesController = asyncHandler(async (req, res) => {
-    const { question, limit, charsPerDocument, conversationId, requireResume } = req.validated.body;
+    const { question, limit, charsPerDocument, conversationId, requireResume, hideMine, hideTeam } =
+        req.validated.body;
 
     // req.user._id is an ObjectId; comparing it to a stored string without
     // toString() would make every follow-up look like someone else's.
@@ -60,14 +118,27 @@ const askProfilesController = asyncHandler(async (req, res) => {
     }
 
     try {
-        const { answer, model, sources, conversation } = await askProfiles({
+        const exclude = existing ? null : await excludedProfileIds({ userId, hideMine, hideTeam });
+        const { answer, model, sources, conversation, created, tokens } = await askProfiles({
             question,
             limit,
             charsPerDocument,
             requireResume,
             conversation: existing,
             userId,
+            exclude,
         });
+
+        const shown = await present(sources, userId);
+        if (created) {
+            await recordResults({
+                userId,
+                profiles: sources,
+                query: question,
+                meta: { source: "ask", requireResume, hideMine, hideTeam },
+            });
+        }
+        await recordQuestion({ userId, question, conversation, tokens });
 
         return res.status(200).json(
             new ApiResponse(200, "Answer generated", {
@@ -76,7 +147,7 @@ const askProfilesController = asyncHandler(async (req, res) => {
                 question,
                 answer,
                 model,
-                sources,
+                sources: shown,
             })
         );
     } finally {
@@ -96,7 +167,8 @@ const HEARTBEAT_MS = 15 * 1000;
  * Closing the connection stops the model and records nothing.
  */
 const askStreamController = asyncHandler(async (req, res) => {
-    const { question, limit, charsPerDocument, conversationId, requireResume } = req.validated.body;
+    const { question, limit, charsPerDocument, conversationId, requireResume, hideMine, hideTeam } =
+        req.validated.body;
     const userId = req.user._id.toString();
 
     const existing = conversationId ? await getConversation({ conversationId, userId }) : null;
@@ -130,6 +202,7 @@ const askStreamController = asyncHandler(async (req, res) => {
     let heartbeat;
 
     try {
+        const exclude = existing ? null : await excludedProfileIds({ userId, hideMine, hideTeam });
         ({ active, created } = await resolveConversation({
             question,
             limit,
@@ -137,7 +210,9 @@ const askStreamController = asyncHandler(async (req, res) => {
             requireResume,
             conversation: existing,
             userId,
+            exclude,
         }));
+        const shown = await present(active.sources, userId);
 
         controller.signal.throwIfAborted();
 
@@ -150,13 +225,23 @@ const askStreamController = asyncHandler(async (req, res) => {
         opened = true;
         heartbeat = setInterval(() => res.write(": ping\n\n"), HEARTBEAT_MS);
 
-        send("meta", { conversationId: active.id, sources: active.sources });
+        send("meta", { conversationId: active.id, sources: shown });
+        if (created) {
+            await recordResults({
+                userId,
+                profiles: active.sources,
+                query: question,
+                meta: { source: "ask", requireResume, hideMine, hideTeam },
+            });
+        }
 
+        let tokens = null;
         const answer = await streamAnswer({
             conversation: active,
             question,
             signal: controller.signal,
             onToken: (text) => send("token", { text }),
+            onUsage: (counts) => (tokens = counts),
         });
 
         send("done", {
@@ -165,9 +250,12 @@ const askStreamController = asyncHandler(async (req, res) => {
             question,
             answer,
             model: process.env.OPENAI_MODEL,
-            sources: active.sources,
+            sources: shown,
         });
         res.end();
+        // Not awaited: the turn is released below without waiting on it, and
+        // recordActivity never throws.
+        void recordQuestion({ userId, question, conversation: active, tokens });
     } catch (error) {
         if (controller.signal.aborted) {
             // The client never learned this conversation's id, so nobody

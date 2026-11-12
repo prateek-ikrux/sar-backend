@@ -3,6 +3,7 @@ import ApiError from "../utils/apiError.js";
 import ApiResponse from "../utils/apiResponse.js";
 import User from "../models/user.model.js";
 import { sendWelcomeMail } from "../utils/mailer.js";
+import { usageFor } from "../services/activityReport.service.js";
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -34,9 +35,12 @@ const listUsers = asyncHandler(async (req, res) => {
         User.countDocuments(filter),
     ]);
 
+    // Last week's use of the platform, per user on this page.
+    const usage = await usageFor(users.map((user) => user._id));
+
     return res.status(200).json(
         new ApiResponse(200, "Users fetched", {
-            users,
+            users: users.map((user) => ({ ...user.toJSON(), usage: usage.get(user._id.toString()) })),
             page,
             limit,
             total,

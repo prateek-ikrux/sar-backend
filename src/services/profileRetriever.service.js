@@ -56,11 +56,33 @@ const runVectorSearch = async ({ query, limit, includeDocument }) => {
 
 const totalLength = (documents) => documents.reduce((sum, document) => sum + (document?.length ?? 0), 0);
 
+// Resume text for profiles found without it, fetched in one query.
+const documentsFor = async (profiles, includeDocument) => {
+    const documents = new Map();
+    if (!includeDocument || !profiles.length) return documents;
+    const withText = await getProfilesCollection()
+        .find({ _id: { $in: profiles.map((profile) => profile._id) } }, { projection: { document: 1 } })
+        .toArray();
+    for (const profile of withText) documents.set(profile._id.toString(), profile.document);
+    return documents;
+};
+
+// Profiles the recruiter asked to leave out (see excludedProfileIds).
+const withoutExcluded = (profiles, exclude) => {
+    if (!exclude?.size) return profiles;
+    const kept = profiles.filter((profile) => !exclude.has(profile._id.toString()));
+    track("search", { excluded: profiles.length - kept.length });
+    return kept;
+};
+
 // ENN costs the same at limit 20 or 400, so the candidate pool is cheap; the
 // existence checks are not, and they stop as soon as enough are found.
-const collectWithResumes = async ({ query, limit }) => {
+const collectWithResumes = async ({ query, limit, exclude }) => {
     const started = process.hrtime.bigint();
-    const candidates = await runVectorSearch({ query, limit: MAX_CANDIDATES, includeDocument: false });
+    const candidates = withoutExcluded(
+        await runVectorSearch({ query, limit: MAX_CANDIDATES, includeDocument: false }),
+        exclude
+    );
     const kept = [];
     let scanned = 0;
 
@@ -79,7 +101,27 @@ const collectWithResumes = async ({ query, limit }) => {
     return { kept, scanned, poolSize: candidates.length };
 };
 
-const searchProfiles = async ({ query, limit, requireResume = false, includeDocument = true }) => {
+/**
+ * `exclude` is a Set of profile ids to leave out. The search then draws on
+ * the wider pool, so leaving some out does not shorten the list.
+ */
+const searchProfiles = async ({ query, limit, requireResume = false, includeDocument = true, exclude = null }) => {
+    if (!requireResume && exclude?.size) {
+        const pool = await runVectorSearch({ query, limit: MAX_CANDIDATES, includeDocument: false });
+        const kept = withoutExcluded(pool, exclude).slice(0, limit);
+        const documents = await documentsFor(kept, includeDocument);
+        track("search", { results: kept.length, documentChars: totalLength([...documents.values()]) });
+
+        return Promise.all(
+            kept.map(async (profile) =>
+                toResult(
+                    { ...profile, document: documents.get(profile._id.toString()) ?? "" },
+                    await getResumeUrl(profile.file_name)
+                )
+            )
+        );
+    }
+
     if (!requireResume) {
         const results = await runVectorSearch({ query, limit, includeDocument });
         track("search", {
@@ -92,15 +134,9 @@ const searchProfiles = async ({ query, limit, requireResume = false, includeDocu
         );
     }
 
-    const { kept } = await collectWithResumes({ query, limit });
+    const { kept } = await collectWithResumes({ query, limit, exclude });
 
-    const documents = new Map();
-    if (includeDocument && kept.length) {
-        const withText = await getProfilesCollection()
-            .find({ _id: { $in: kept.map((profile) => profile._id) } }, { projection: { document: 1 } })
-            .toArray();
-        for (const profile of withText) documents.set(profile._id.toString(), profile.document);
-    }
+    const documents = await documentsFor(kept, includeDocument);
     track("search", { results: kept.length, documentChars: totalLength([...documents.values()]) });
 
     return Promise.all(

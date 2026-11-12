@@ -70,6 +70,86 @@ const RESUME_CACHE_MAX_ENTRIES = 50000;
 const SHORTLIST_MAX_ITEMS = 200;
 const SHORTLIST_NOTE_MAX_CHARS = 1000;
 
+// Recruiter activity. Each event keeps the candidate's id only, never their
+// details. Events go after a year; the text a recruiter typed (searches,
+// questions) is dropped from them after 90 days, leaving the counts.
+const ACTIVITY = Object.freeze({
+  SEARCH_RESULTS: "search_results",
+  QUESTION: "question",
+  CONTACT_VIEW: "contact_view",
+  RESUME_VIEW: "resume_view",
+  RESUME_DOWNLOAD: "resume_download",
+  SHORTLIST_ADD: "shortlist_add",
+  SHORTLIST_REMOVE: "shortlist_remove",
+  TAG: "tag",
+  EXPORT: "export",
+  LOGIN: "login",
+  LOGIN_FAILED: "login_failed",
+});
+// What counts as having worked on a candidate, as against them only turning
+// up in someone's results. These are what the search card flags to others.
+const ENGAGED_ACTIVITY = Object.freeze([
+  ACTIVITY.CONTACT_VIEW,
+  ACTIVITY.RESUME_VIEW,
+  ACTIVITY.RESUME_DOWNLOAD,
+  ACTIVITY.SHORTLIST_ADD,
+  ACTIVITY.TAG,
+  ACTIVITY.EXPORT,
+]);
+const ACTIVITY_RETENTION_DAYS = 365;
+const ACTIVITY_TEXT_RETENTION_DAYS = 90;
+const ACTIVITY_TEXT_PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// How far back a search card looks for other recruiters' work.
+const TEAM_ACTIVITY_WINDOW_DAYS = 90;
+// Other recruiters named on one card; the rest are counted.
+const TEAM_ACTIVITY_NAMES_MAX = 5;
+
+// Shared status on a candidate, one current tag per recruiter, seen by all.
+const CANDIDATE_TAGS = Object.freeze([
+  "contacted",
+  "interested",
+  "not_interested",
+  "not_reachable",
+  "wrong_number",
+  "in_process",
+  "not_a_fit",
+  "placed",
+]);
+const CANDIDATE_TAG_NOTE_MAX_CHARS = 280;
+
+// Time on the platform. The page checks in about once a minute while it is
+// visible and in use; check-ins closer together than SESSION_GAP_MS belong to
+// one session. Each check-in adds the time since the last one, capped, so two
+// open tabs or a stalled timer cannot inflate it.
+const SESSION_GAP_MS = 5 * 60 * 1000;
+const HEARTBEAT_MAX_CREDIT_SECONDS = 75;
+// User agents are free text from the client; this is plenty to name a browser.
+const USER_AGENT_MAX_CHARS = 300;
+
+// Unusual activity, flagged for admins. Each is a count in one window that a
+// recruiter working normally wouldn't reach.
+const FLAG_RESUMES_PER_HOUR = 30;
+const FLAG_CONTACTS_PER_HOUR = 30;
+const FLAG_EXPORTED_PER_DAY = 100;
+const FLAG_FAILED_LOGINS_PER_DAY = 5;
+const FLAG_NIGHT_ACTIONS_PER_DAY = 5;
+// Local hours counted as night: from NIGHT_START until NIGHT_END.
+const NIGHT_START_HOUR = 22;
+const NIGHT_END_HOUR = 6;
+// A sign-in is from somewhere new if its IP or browser wasn't seen in this
+// many days before it.
+const NEW_LOCATION_LOOKBACK_DAYS = 90;
+
+// The weekly summary email: Mondays, from this hour, in the time zone the
+// admins chose. Off until an admin turns it on.
+const WEEKLY_SUMMARY_HOUR = 9;
+const WEEKLY_SUMMARY_CHECK_MS = 10 * 60 * 1000;
+const WEEKLY_SUMMARY_MAX_RECIPIENTS = 20;
+
+const EXPORT_MAX_ROWS = 200;
+// A download link is used straight away, so it is short-lived.
+const RESUME_DOWNLOAD_URL_EXPIRY_SECONDS = 5 * 60;
+
 // How the product names itself to users, in the UI and in every email. The
 // organisation is always lower-case "ikrux", as in its wordmark.
 const ORG_NAME = "ikrux";
@@ -77,6 +157,31 @@ const PRODUCT_NAME = "Candidate Search & Retrieval";
 
 export {
   ROLES,
+  ACTIVITY,
+  ENGAGED_ACTIVITY,
+  ACTIVITY_RETENTION_DAYS,
+  ACTIVITY_TEXT_RETENTION_DAYS,
+  ACTIVITY_TEXT_PURGE_INTERVAL_MS,
+  TEAM_ACTIVITY_WINDOW_DAYS,
+  TEAM_ACTIVITY_NAMES_MAX,
+  CANDIDATE_TAGS,
+  CANDIDATE_TAG_NOTE_MAX_CHARS,
+  EXPORT_MAX_ROWS,
+  RESUME_DOWNLOAD_URL_EXPIRY_SECONDS,
+  SESSION_GAP_MS,
+  HEARTBEAT_MAX_CREDIT_SECONDS,
+  USER_AGENT_MAX_CHARS,
+  FLAG_RESUMES_PER_HOUR,
+  FLAG_CONTACTS_PER_HOUR,
+  FLAG_EXPORTED_PER_DAY,
+  FLAG_FAILED_LOGINS_PER_DAY,
+  FLAG_NIGHT_ACTIONS_PER_DAY,
+  NIGHT_START_HOUR,
+  NIGHT_END_HOUR,
+  NEW_LOCATION_LOOKBACK_DAYS,
+  WEEKLY_SUMMARY_HOUR,
+  WEEKLY_SUMMARY_CHECK_MS,
+  WEEKLY_SUMMARY_MAX_RECIPIENTS,
   ORG_NAME,
   PRODUCT_NAME,
   SHORTLIST_MAX_ITEMS,

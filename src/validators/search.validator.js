@@ -46,10 +46,16 @@ const conversationId = requiredString()
 
 const requireResume = z.boolean({ error: "must be true or false" }).default(REQUIRE_RESUME_DEFAULT);
 
+// Leave out candidates the caller (hideMine) or other recruiters (hideTeam)
+// have worked on lately. Part of what a conversation is pinned to.
+const flag = z.boolean({ error: "must be true or false" });
+
 const searchProfilesSchema = z
     .strictObject({
         query,
         requireResume,
+        hideMine: flag.default(false),
+        hideTeam: flag.default(false),
         limit: limitBase.default(SEARCH_LIMIT_DEFAULT),
         charsPerDocument: charsPerDocumentBase.default(CHARS_PER_DOCUMENT_DEFAULT),
     })
@@ -63,6 +69,8 @@ const askProfilesSchema = z
         question: query,
         conversationId: conversationId.optional(),
         requireResume: z.boolean({ error: "must be true or false" }).optional(),
+        hideMine: flag.optional(),
+        hideTeam: flag.optional(),
         limit: limitBase.optional(),
         charsPerDocument: charsPerDocumentBase.optional(),
     })
@@ -78,7 +86,7 @@ const askProfilesSchema = z
             return;
         }
 
-        for (const field of ["limit", "charsPerDocument", "requireResume"]) {
+        for (const field of ["limit", "charsPerDocument", "requireResume", "hideMine", "hideTeam"]) {
             if (body[field] !== undefined) {
                 ctx.addIssue({
                     code: "custom",

@@ -3,6 +3,8 @@ import { validateEnv } from "./config/env.js";
 import { connectDB } from "./db/index.js";
 import app from "./app.js";
 import logger from "./utils/logger.js";
+import { startActivityRetention } from "./services/activity.service.js";
+import { startWeeklySummary } from "./services/weeklySummary.service.js";
 
 // Env comes from the process: `node --env-file` in the npm scripts, env_file
 // in compose. Checked before anything tries to use it.
@@ -15,6 +17,9 @@ const PORT = Number(process.env.PORT) || 9000;
 const SHUTDOWN_TIMEOUT_MS = 10 * 1000;
 
 await connectDB();
+startActivityRetention();
+// Checks every few minutes; sends nothing until an admin turns it on.
+startWeeklySummary();
 
 // Express 5 hands listen failures (EADDRINUSE, EACCES) to this callback rather
 // than throwing. Without the check it would log success, and the open Mongo

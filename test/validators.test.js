@@ -13,6 +13,8 @@ describe("searchProfilesSchema", () => {
         assert.deepEqual(data, {
             query: "node developer",
             requireResume: true,
+            hideMine: false,
+            hideTeam: false,
             limit: 5,
             charsPerDocument: 4000,
         });
@@ -40,7 +42,13 @@ describe("askProfilesSchema", () => {
     it("refuses to change pinned options on a follow-up", () => {
         const conversationId = randomUUID();
         assert.equal(passes(askProfilesSchema, { question: "who fits", conversationId }), true);
-        for (const field of [{ limit: 5 }, { charsPerDocument: 4000 }, { requireResume: false }]) {
+        for (const field of [
+            { limit: 5 },
+            { charsPerDocument: 4000 },
+            { requireResume: false },
+            { hideMine: true },
+            { hideTeam: true },
+        ]) {
             assert.equal(passes(askProfilesSchema, { question: "who fits", conversationId, ...field }), false);
         }
     });

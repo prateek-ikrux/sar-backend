@@ -116,7 +116,8 @@ const refreshResumeUrls = async (conversation) => {
 // Finds the conversation a question goes to: the pinned one on a follow-up,
 // or a new one retrieved for the question itself. `created` tells a caller
 // that gives up part-way that the conversation is its to clean up.
-const resolveConversation = async ({ question, limit, charsPerDocument, requireResume, conversation, userId }) => {
+// `exclude` (a Set of profile ids) only matters when a new set is retrieved.
+const resolveConversation = async ({ question, limit, charsPerDocument, requireResume, conversation, userId, exclude }) => {
     if (conversation) {
         await refreshResumeUrls(conversation);
         return { active: conversation, created: false };
@@ -129,6 +130,7 @@ const resolveConversation = async ({ question, limit, charsPerDocument, requireR
         query: question,
         limit: resolvedLimit,
         requireResume: resolvedRequireResume,
+        exclude,
     });
 
     const active = await openConversation({
@@ -186,12 +188,22 @@ const recordTurn = (conversation, question, answer) =>
         aiMessage: new AIMessage(answer),
     });
 
+// Token counts as the activity log keeps them, from LangChain's usage_metadata.
+const tokensOf = (usage) =>
+    usage
+        ? {
+              inputTokens: usage.input_tokens ?? 0,
+              cachedTokens: usage.input_token_details?.cache_read ?? 0,
+              outputTokens: usage.output_tokens ?? 0,
+          }
+        : null;
+
 /**
  * Streams an answer on an already resolved conversation, handing each piece
  * to onToken. Aborting `signal` stops the model call and leaves the history
- * untouched.
+ * untouched. `onUsage` gets the token counts once the model reports them.
  */
-const streamAnswer = async ({ conversation, question, signal, onToken }) => {
+const streamAnswer = async ({ conversation, question, signal, onToken, onUsage }) => {
     const input = chainInput(conversation, question);
     const started = process.hrtime.bigint();
     let answer = "";
@@ -216,6 +228,7 @@ const streamAnswer = async ({ conversation, question, signal, onToken }) => {
         throw error;
     } finally {
         trackModelCall({ input, started, usage, outcome });
+        if (usage) onUsage?.(tokensOf(usage));
     }
 
     await recordTurn(conversation, question, answer);
@@ -223,14 +236,15 @@ const streamAnswer = async ({ conversation, question, signal, onToken }) => {
     return answer;
 };
 
-const askProfiles = async ({ question, limit, charsPerDocument, requireResume, conversation, userId }) => {
-    const { active } = await resolveConversation({
+const askProfiles = async ({ question, limit, charsPerDocument, requireResume, conversation, userId, exclude }) => {
+    const { active, created } = await resolveConversation({
         question,
         limit,
         charsPerDocument,
         requireResume,
         conversation,
         userId,
+        exclude,
     });
 
     const input = chainInput(active, question);
@@ -251,6 +265,8 @@ const askProfiles = async ({ question, limit, charsPerDocument, requireResume, c
         model: process.env.OPENAI_MODEL,
         sources: active.sources,
         conversation: active,
+        created,
+        tokens: tokensOf(message.usage_metadata),
     };
 };
 

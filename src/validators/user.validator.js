@@ -53,7 +53,51 @@ const listUsersQuerySchema = z.strictObject({
     order: z.enum(["asc", "desc"], { error: "must be asc or desc" }).default("desc"),
 });
 
+// The admin's time zone, so a chart's days are their days. Anything the
+// runtime doesn't know is refused rather than silently read as UTC.
+const timeZone = z
+    .string({ error: "must be a string" })
+    .trim()
+    .max(64)
+    .refine(
+        (tz) => {
+            try {
+                new Intl.DateTimeFormat("en", { timeZone: tz });
+                return true;
+            } catch {
+                return false;
+            }
+        },
+        { error: "must be a time zone such as Asia/Kolkata" }
+    )
+    .default("UTC");
+
+const days = z.coerce
+    .number({ error: "must be a number" })
+    .refine((n) => [7, 30, 90].includes(n), { error: "must be 7, 30 or 90" })
+    .default(30);
+
+const activitySummaryQuerySchema = z.strictObject({ days, tz: timeZone });
+
+const activitySearchesQuerySchema = z.strictObject({
+    days,
+    page: z.coerce
+        .number({ error: "must be a number" })
+        .int({ error: "must be a whole number" })
+        .min(1, { error: "must be at least 1" })
+        .default(1),
+});
+
+const activityEventsQuerySchema = z.strictObject({
+    // The `at` of the last entry already shown.
+    before: z.coerce.date({ error: "must be a date" }).optional(),
+});
+
 export {
+    timeZone,
+    activitySummaryQuerySchema,
+    activitySearchesQuerySchema,
+    activityEventsQuerySchema,
     createUserSchema,
     updateUserSchema,
     userIdParamSchema,

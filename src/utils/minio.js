@@ -54,6 +54,19 @@ const getPresignedUrl = async (fileName, expirySeconds = RESUME_URL_EXPIRY_SECON
   )
 }
 
+// A link that saves the file instead of opening it in the browser. The name
+// is kept to characters every browser reads the same way in the header.
+const getDownloadUrl = async (fileName, expirySeconds) => {
+  track('minio', { linksSigned: 1 })
+  const safeName = fileName.replace(/[^\w.\- ]+/g, '_')
+  return getClient().presignedGetObject(
+    process.env.MINIO_BUCKET,
+    objectKey(fileName),
+    expirySeconds,
+    { 'response-content-disposition': `attachment; filename="${safeName}"` }
+  )
+}
+
 const objectExists = async (fileName) => {
   if (!fileName) return false
 
@@ -98,6 +111,7 @@ const getResumeUrl = async (fileName, expirySeconds = RESUME_URL_EXPIRY_SECONDS)
 export {
   getClient,
   getPresignedUrl,
+  getDownloadUrl,
   getResumeUrl,
   objectExists,
 }

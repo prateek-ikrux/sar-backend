@@ -36,12 +36,18 @@ import authRouter from "./routes/auth.routes.js";
 import healthRouter from "./routes/healthcheck.routes.js";
 import searchRouter from "./routes/search.routes.js";
 import shortlistRouter from "./routes/shortlist.routes.js";
+import candidateRouter from "./routes/candidate.routes.js";
+import activityRouter from "./routes/activity.routes.js";
+import teamRouter from "./routes/team.routes.js";
 
 app.use("/api/v1", userRouter);
 app.use("/api/v1", authRouter);
 app.use("/api/v1", healthRouter);
 app.use("/api/v1", searchRouter);
 app.use("/api/v1", shortlistRouter);
+app.use("/api/v1", candidateRouter);
+app.use("/api/v1", activityRouter);
+app.use("/api/v1", teamRouter);
 
 import { notFound, errorHandler } from "./middlewares/error.middleware.js";
 
