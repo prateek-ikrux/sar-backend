@@ -62,6 +62,8 @@ const getUser = asyncHandler(async (req, res) => {
 const createUser = asyncHandler(async (req, res) => {
     const { email, name, role } = req.validated.body;
 
+    // No password: the welcome mail sends them to Forgot password to set their
+    // own, so nobody ever holds a password they didn't choose.
     let user;
     try {
         user = await User.create({ email, name, role });

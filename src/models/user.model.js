@@ -30,12 +30,32 @@ const userSchema = new Schema(
             type: Date,
             default: null,
         },
+        // Never returned by a query unless asked for with select("+password_hash"),
+        // and stripped from toJSON below. Null means no password set yet: the
+        // user sets their first one through Forgot password.
+        password_hash: {
+            type: String,
+            select: false,
+            default: null,
+        },
+        password_changed_at: {
+            type: Date,
+            default: null,
+        },
     },
     {
         collection: "users",
         // The collection stores created_at, not createdAt.
         timestamps: { createdAt: "created_at", updatedAt: false },
         versionKey: false,
+        // The hash must not reach any API response, whatever a controller
+        // chooses to send.
+        toJSON: {
+            transform: (_doc, ret) => {
+                delete ret.password_hash;
+                return ret;
+            },
+        },
     }
 );
 

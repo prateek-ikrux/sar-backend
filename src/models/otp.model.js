@@ -1,4 +1,5 @@
 import { Schema, model } from "mongoose";
+import { OTP_PURPOSE } from "../constants.js";
 
 const otpSchema = new Schema(
     {
@@ -11,6 +12,13 @@ const otpSchema = new Schema(
         user_id: {
             type: Schema.Types.ObjectId,
             ref: "User",
+            required: true,
+        },
+        // Codes stored before this field existed have none, so no purpose query
+        // matches them: they stop working rather than being trusted for anything.
+        purpose: {
+            type: String,
+            enum: Object.values(OTP_PURPOSE),
             required: true,
         },
         code_hash: {

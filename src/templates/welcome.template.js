@@ -7,7 +7,11 @@ const roleLine = (role) =>
         : "You can search candidates and ask questions about them.";
 
 // Sent when an admin adds someone, so they hear about access from the product
-// rather than having to be told, and know there is no password to set up.
+// rather than having to be told. No password is sent: they set their own
+// through Forgot password, which proves they hold this inbox.
+const SET_PASSWORD_COPY =
+    'To get started, open the sign-in page, choose "Forgot password?" and enter this email address. We\'ll email you a code to set your password. After that, you sign in with your password and a one-time code we email you.';
+
 const welcomeTemplate = ({ name = "there", role, appUrl }) => {
     const subject = `You now have access to ${ORG_NAME} ${PRODUCT_NAME}`;
     const link = safeUrl(appUrl);
@@ -17,7 +21,7 @@ const welcomeTemplate = ({ name = "there", role, appUrl }) => {
         "",
         `You've been given access to ${PRODUCT_NAME}. ${roleLine(role)}`,
         "",
-        "There's no password. To sign in, enter this email address and we'll send you a one-time code.",
+        SET_PASSWORD_COPY,
         ...(link ? ["", `Sign in: ${link}`] : []),
         "",
         `— ${ORG_NAME} · ${PRODUCT_NAME}`,
@@ -28,16 +32,13 @@ const welcomeTemplate = ({ name = "there", role, appUrl }) => {
         paragraph(
             `You've been given access to <strong>${escapeHtml(PRODUCT_NAME)}</strong>. ${escapeHtml(roleLine(role))}`
         ),
-        paragraph(
-            "There's no password. To sign in, enter this email address and we'll send you a one-time code.",
-            { muted: true }
-        ),
-        ...(link ? [button(link, `Sign in to ${PRODUCT_NAME}`)] : []),
+        paragraph(escapeHtml(SET_PASSWORD_COPY), { muted: true }),
+        ...(link ? [button(link, `Open ${PRODUCT_NAME}`)] : []),
     ].join("\n");
 
     const html = emailLayout({
         title: subject,
-        preheader: `You can now sign in to ${PRODUCT_NAME} with a code sent to this address.`,
+        preheader: `You can now use ${PRODUCT_NAME}. Set your password to get started.`,
         content,
     });
 

@@ -2,7 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { searchProfilesSchema, askProfilesSchema } from "../src/validators/search.validator.js";
-import { verifyOtpSchema } from "../src/validators/auth.validator.js";
+import { requestOtpSchema, verifyOtpSchema } from "../src/validators/auth.validator.js";
+import { password, notEmail } from "../src/validators/common.validator.js";
 import { updateUserSchema, createUserSchema, listUsersQuerySchema } from "../src/validators/user.validator.js";
 
 const passes = (schema, body) => schema.safeParse(body).success;
@@ -59,6 +60,30 @@ describe("auth and user schemas", () => {
         assert.equal(passes(verifyOtpSchema, { email: "a@b.com", code: "012345" }), true);
         assert.equal(passes(verifyOtpSchema, { email: "a@b.com", code: "12345" }), false);
         assert.equal(passes(verifyOtpSchema, { email: "a@b.com", code: "12345a" }), false);
+    });
+
+    it("requires a password to sign in, and keeps it exactly as typed", () => {
+        assert.equal(passes(requestOtpSchema, { email: "a@b.com" }), false);
+        assert.equal(passes(requestOtpSchema, { email: "a@b.com", password: "" }), false);
+        assert.equal(passes(requestOtpSchema, { email: "a@b.com", password: "x".repeat(129) }), false);
+
+        const { data } = requestOtpSchema.safeParse({ email: "A@B.com", password: "  Short  " });
+        assert.deepEqual(data, { email: "a@b.com", password: "  Short  " });
+    });
+
+    it("holds a new password to 12-128 characters without trimming it", () => {
+        assert.equal(passes(password, "x".repeat(11)), false);
+        assert.equal(passes(password, "x".repeat(12)), true);
+        assert.equal(passes(password, "x".repeat(128)), true);
+        assert.equal(passes(password, "x".repeat(129)), false);
+        // Surrounding spaces count toward the length and survive parsing.
+        assert.equal(password.safeParse("  " + "x".repeat(10)).success, true);
+        assert.equal(password.safeParse("  " + "x".repeat(10)).data, "  " + "x".repeat(10));
+    });
+
+    it("recognises a password that is just the email address", () => {
+        assert.equal(notEmail("Someone@IKRUX.com", "someone@ikrux.com"), false);
+        assert.equal(notEmail("another password", "someone@ikrux.com"), true);
     });
 
     it("normalises email case", () => {

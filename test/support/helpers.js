@@ -1,4 +1,5 @@
 import { once } from "node:events";
+import { mock } from "node:test";
 
 // A complete, valid environment. Nothing here reaches a real service: tests
 // that need MongoDB start their own, and nothing calls MinIO, Graph or OpenAI.
@@ -55,4 +56,51 @@ const serve = async (app) => {
     return { base, request, close };
 };
 
-export { TEST_ENV, applyTestEnv, serve };
+// Replaces fetch so no mail leaves the machine: Graph's token and sendMail
+// endpoints are answered locally and every message is recorded. Any other URL
+// (the test server itself) goes to the real fetch. Call restore() when done.
+// failSend makes Graph refuse every message (still recorded as attempted).
+const stubMail = ({ failSend = false } = {}) => {
+    const realFetch = globalThis.fetch;
+    const sent = [];
+
+    const stub = mock.method(globalThis, "fetch", async (url, options) => {
+        const target = String(url instanceof Request ? url.url : url);
+        if (target.includes("login.microsoftonline.com")) {
+            return Response.json({ access_token: "t", expires_in: 3600 });
+        }
+        if (target.includes("graph.microsoft.com")) {
+            const { message } = JSON.parse(options.body);
+            sent.push({
+                to: message.toRecipients[0].emailAddress.address,
+                subject: message.subject,
+                // HTML bodies are reduced to their text so tests can search them.
+                text: message.body.content.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " "),
+            });
+            return failSend
+                ? Response.json({ error: { message: "stubbed failure" } }, { status: 500 })
+                : new Response(null, { status: 202 });
+        }
+        return realFetch(url, options);
+    });
+
+    // The first 6-digit run in the latest subject sent to that address.
+    const codeFor = (email) => {
+        const latest = sent.findLast((mail) => mail.to === email);
+        return latest?.subject.match(/\d{6}/)?.[0];
+    };
+
+    // Some mail is sent after the HTTP response (forgot-password), so a test
+    // waits here for it instead of racing it.
+    const waitFor = async (email, { timeoutMs = 5000 } = {}) => {
+        const deadline = Date.now() + timeoutMs;
+        while (!sent.some((mail) => mail.to === email)) {
+            if (Date.now() > deadline) throw new Error(`no mail to ${email} within ${timeoutMs}ms`);
+            await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+    };
+
+    return { sent, codeFor, waitFor, restore: () => stub.mock.restore() };
+};
+
+export { TEST_ENV, applyTestEnv, serve, stubMail };

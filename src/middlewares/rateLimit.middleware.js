@@ -5,6 +5,7 @@ import {
     OTP_REQUESTS_PER_IP,
     OTP_REQUESTS_PER_EMAIL,
     OTP_VERIFICATIONS_PER_IP,
+    PASSWORD_CHANGES_PER_IP,
 } from "../constants.js";
 
 // Counters are kept in process memory, which is enough for a single instance.
@@ -34,6 +35,25 @@ const otpRequestEmailLimiter = limiter({
     keyGenerator: (req) => `email:${req.validated.body.email}`,
 });
 
+// Forgot-password gets its own counters, so failed sign-ins (which spend the
+// request-otp allowance) cannot lock someone out of recovering their password.
+const forgotPasswordIpLimiter = limiter({ limit: OTP_REQUESTS_PER_IP });
+const forgotPasswordEmailLimiter = limiter({
+    limit: OTP_REQUESTS_PER_EMAIL,
+    keyGenerator: (req) => `email:${req.validated.body.email}`,
+});
+
 const otpVerifyIpLimiter = limiter({ limit: OTP_VERIFICATIONS_PER_IP });
 
-export { otpRequestIpLimiter, otpRequestEmailLimiter, otpVerifyIpLimiter };
+// Change-password checks the current password, so anyone holding a stolen
+// token could guess it; this caps the guessing.
+const passwordChangeIpLimiter = limiter({ limit: PASSWORD_CHANGES_PER_IP });
+
+export {
+    otpRequestIpLimiter,
+    otpRequestEmailLimiter,
+    forgotPasswordIpLimiter,
+    forgotPasswordEmailLimiter,
+    otpVerifyIpLimiter,
+    passwordChangeIpLimiter,
+};

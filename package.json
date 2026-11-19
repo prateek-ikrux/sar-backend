@@ -24,7 +24,8 @@
   "scripts": {
     "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
     "dev": "node --env-file-if-exists=.env --watch src/index.js | pino-pretty",
-    "start": "node --env-file-if-exists=.env src/index.js"
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "cleanup-handed-out-passwords": "node --env-file-if-exists=.env scripts/cleanup-handed-out-passwords.js"
   },
   "dependencies": {
     "@langchain/core": "^1.2.12",

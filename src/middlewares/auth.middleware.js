@@ -28,6 +28,13 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
         throw new ApiError(401, "Unauthorized", ["User not found or deactivated"]);
     }
 
+    // Tokens issued before the last password change are dead. iat has second
+    // resolution and password_changed_at is stored cut to the second, so the
+    // token issued by the change itself passes.
+    if (user.password_changed_at && decodedToken.iat < Math.floor(user.password_changed_at.getTime() / 1000)) {
+        throw new ApiError(401, "Invalid access token", ["Password changed; sign in again"]);
+    }
+
     req.user = user;
     next();
 });

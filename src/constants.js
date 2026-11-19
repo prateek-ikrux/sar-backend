@@ -6,13 +6,23 @@ const ROLES = Object.freeze({
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 10;
 const OTP_MAX_ATTEMPTS = 5;
+// What an emailed code is good for. A code only works for the purpose it was
+// issued for, so a password-reset code can never sign anyone in.
+const OTP_PURPOSE = Object.freeze({ LOGIN: "login", RESET: "reset" });
+
+// Passwords a user chooses.
+const PASSWORD_MIN_LENGTH = 12;
+const PASSWORD_MAX_LENGTH = 128;
 
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const OTP_REQUESTS_PER_IP = 10;
-// Each code allows OTP_MAX_ATTEMPTS guesses, so this also bounds guesses per
-// address: 5 codes x 5 attempts = 25 per window.
+// Per address per window, for sign-in requests and, separately, forgot-password.
+// Each sign-in request also checks a password, so this caps password guesses per
+// address too; and each code allows OTP_MAX_ATTEMPTS guesses, so it bounds code
+// guesses as well: 5 codes x 5 attempts = 25 per window.
 const OTP_REQUESTS_PER_EMAIL = 5;
 const OTP_VERIFICATIONS_PER_IP = 20;
+const PASSWORD_CHANGES_PER_IP = 10;
 
 const MICROSOFT_GRAPH_SCOPE = "https://graph.microsoft.com/.default";
 const MICROSOFT_GET_TOKEN = "https://login.microsoftonline.com/<TENANT_ID>/oauth2/v2.0/token";
@@ -186,13 +196,17 @@ export {
   PRODUCT_NAME,
   SHORTLIST_MAX_ITEMS,
   SHORTLIST_NOTE_MAX_CHARS,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH,
   OTP_LENGTH,
   OTP_EXPIRY_MINUTES,
   OTP_MAX_ATTEMPTS,
+  OTP_PURPOSE,
   RATE_LIMIT_WINDOW_MS,
   OTP_REQUESTS_PER_IP,
   OTP_REQUESTS_PER_EMAIL,
   OTP_VERIFICATIONS_PER_IP,
+  PASSWORD_CHANGES_PER_IP,
   MICROSOFT_GRAPH_SCOPE,
   MICROSOFT_GET_TOKEN,
   MICROSOFT_SEND_MAIL,

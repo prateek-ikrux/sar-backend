@@ -97,6 +97,7 @@ describe("sign-in history", () => {
         Otp.create({
             email: ann.email,
             user_id: ann._id,
+            purpose: "login",
             code_hash: await argon2.hash(code, { type: argon2.argon2id }),
             expires_at: new Date(Date.now() + 10 * 60 * 1000),
         });
